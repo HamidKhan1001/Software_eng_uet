@@ -1,11 +1,10 @@
-import React, { useEffect, useState } from 'react';
-import { BrowserRouter, Routes, Route, Navigate, useNavigate, useSearchParams, Link } from 'react-router-dom';
+import React, { useEffect, useState, useRef } from 'react';
+import { BrowserRouter, Routes, Route, Navigate, useNavigate, useSearchParams, Link, useLocation } from 'react-router-dom';
 import { api } from './api';
 import './styles.css';
-import { Community } from './pages'; 
+import { Community } from './pages';
 
-
-/* -------------- helpers -------------- */
+/* ---------------- helpers ---------------- */
 function useAuth() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -20,86 +19,114 @@ function useAuth() {
   return { user, setUser, loading };
 }
 
-/* -------------- layout -------------- */
+const emailOk = (v) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
+const pwOk = (v) => String(v || '').length >= 8;
+
+/* ---------------- layout ---------------- */
 function Header({ user, onToggleSidebar }) {
   const [open, setOpen] = useState(false);
   const nav = useNavigate();
+  const loc = useLocation();
+  const dropdownRef = useRef(null);
+
+  useEffect(() => {
+    // close dropdown on route change
+    setOpen(false);
+  }, [loc.pathname]);
+
+  useEffect(() => {
+    const onDocClick = (e) => {
+      if (!dropdownRef.current) return;
+      if (!dropdownRef.current.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener('click', onDocClick);
+    return () => document.removeEventListener('click', onDocClick);
+  }, []);
+
   const logout = () => { localStorage.removeItem('token'); window.location.href = '/'; };
 
   return (
     <header className="header">
       <button className="icon-btn burger" onClick={onToggleSidebar} aria-label="menu">☰</button>
-      <div className="brand">
+
+      <Link to={user ? (user.role === 'admin' ? '/admin' : '/dashboard') : '/'} className="brand brand-link">
+        <img src="/uet-logo.png" alt="UET SE logo" className="logo-img"
+             onError={(e) => { e.currentTarget.style.display='none'; }}/>
         <div className="logo-dot" />
-        <h1>UET Software Engineering</h1>
-        <span className="badge">Software</span>
-      </div>
+        <div className="brand-text">
+          <h1>UET Software Engineering</h1>
+          <span className="badge">Software</span>
+        </div>
+      </Link>
+
+      {/* desktop nav */}
+      {user && (
+        <nav className="topnav">
+          <Link className={loc.pathname.startsWith('/dashboard') ? 'active' : ''} to="/dashboard">Dashboard</Link>
+          <Link className={loc.pathname.startsWith('/community') ? 'active' : ''} to="/community">Community</Link>
+          {user.role === 'admin' && (
+            <Link className={loc.pathname.startsWith('/admin') ? 'active' : ''} to="/admin">Admin</Link>
+          )}
+          <Link className={loc.pathname.startsWith('/scan') ? 'active' : ''} to="/scan">Scan</Link>
+        </nav>
+      )}
+
+      {/* profile */}
       {user ? (
-        <div className="profile">
-          <button className="profile-btn" onClick={() => setOpen(v => !v)}>
+        <div className="profile" ref={dropdownRef}>
+          <button className="profile-btn" onClick={() => setOpen(v => !v)} aria-haspopup="menu" aria-expanded={open}>
             <div className="avatar">{(user.name || 'U')[0].toUpperCase()}</div>
             <span className="profile-name">{user.name}</span>
             <span className="chev">▾</span>
           </button>
           {open && (
-            <div className="profile-menu" onMouseLeave={() => setOpen(false)}>
+            <div className="profile-menu" role="menu">
               <div className="profile-info">
                 <div className="avatar lg">{(user.name || 'U')[0].toUpperCase()}</div>
                 <div>
                   <div className="bold">{user.name}</div>
                   <div className="muted">{user.email}</div>
                   <div className="muted">Role: {user.role}</div>
-                  {user.batchId ? <div className="muted">Batch: {user.batchId.slice(0,6)}</div> : null}
+                  {user.batchId ? <div className="muted">Batch: {String(user.batchId).slice(0, 6)}</div> : null}
                 </div>
               </div>
-              <div className="menu-row">
-                <button className="menu-btn" onClick={() => { setOpen(false); nav('/dashboard'); }}>Dashboard</button>
-              </div>
-              {user.role === 'admin' && (
-                <div className="menu-row">
-                  <button className="menu-btn" onClick={() => { setOpen(false); nav('/admin'); }}>Admin</button>
-                </div>
-              )}
-              <div className="menu-row">
-                <button className="menu-btn" onClick={() => { setOpen(false); nav('/scan'); }}>Scan QR</button>
-              </div>
-              <div className="menu-row">
-                <button className="menu-btn danger" onClick={logout}>Logout</button>
-              </div>
+              <div className="menu-row"><button className="menu-btn" onClick={() => nav('/dashboard')}>Dashboard</button></div>
+              {user.role === 'admin' && <div className="menu-row"><button className="menu-btn" onClick={() => nav('/admin')}>Admin</button></div>}
+              <div className="menu-row"><button className="menu-btn" onClick={() => nav('/scan')}>Scan QR</button></div>
+              <div className="menu-row"><button className="menu-btn danger" onClick={logout}>Logout</button></div>
             </div>
           )}
         </div>
-      ) : (
-        <div />
-      )}
+      ) : <div />}
     </header>
   );
 }
 
 function Sidebar({ open, onClose, user }) {
+  const loc = useLocation();
   return (
     <>
-      <nav className={`sidebar ${open ? 'open' : ''}`}>
+      <nav className={`sidebar ${open ? 'open' : ''}`} aria-label="mobile">
         <div className="sidebar-header">
+          <img src="/uet-logo.png" alt="" className="logo-img sm" onError={(e)=>{e.currentTarget.style.display='none';}}/>
           <div className="logo-dot" />
           <div className="title">UET SE</div>
           <button className="icon-btn close" onClick={onClose} aria-label="close">✕</button>
         </div>
         <ul className="side-list">
-          <li><Link to="/dashboard" onClick={onClose}>🏠 Dashboard</Link></li>
-          <li><Link to="/community" onClick={onClose}>💬 Community</Link></li>
-
-          {user?.role === 'admin' && <li><Link to="/admin" onClick={onClose}>🛠️ Admin</Link></li>}
-          <li><Link to="/scan" onClick={onClose}>📷 Scan</Link></li>
+          <li className={loc.pathname.startsWith('/dashboard') ? 'active' : ''}><Link to="/dashboard" onClick={onClose}>🏠 Dashboard</Link></li>
+          <li className={loc.pathname.startsWith('/community') ? 'active' : ''}><Link to="/community" onClick={onClose}>💬 Community</Link></li>
+          {user?.role === 'admin' && <li className={loc.pathname.startsWith('/admin') ? 'active' : ''}><Link to="/admin" onClick={onClose}>🛠️ Admin</Link></li>}
+          <li className={loc.pathname.startsWith('/scan') ? 'active' : ''}><Link to="/scan" onClick={onClose}>📷 Scan</Link></li>
         </ul>
         <div className="side-foot muted">© UET SE</div>
       </nav>
-      {open && <div className="backdrop" onClick={onClose} />}
+      {open && <div className="backdrop" onClick={onClose} aria-hidden="true"/>}
     </>
   );
 }
 
-/* -------------- pages -------------- */
+/* ---------------- pages ---------------- */
 function Login({ setUser }) {
   const nav = useNavigate();
   const [mode, setMode] = useState('login');
@@ -107,72 +134,103 @@ function Login({ setUser }) {
   const [regNo, setRegNo] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPw, setShowPw] = useState(false);
+  const [busy, setBusy] = useState(false);
   const years = Array.from({ length: 8 }, (_, i) => String(2024 + i));
   const [batchNumber, setBatchNumber] = useState('2024');
   const [error, setError] = useState('');
 
+  const canSubmit = mode === 'login'
+    ? emailOk(email) && pwOk(password) && !busy
+    : name.trim() && regNo.trim() && emailOk(email) && pwOk(password) && batchNumber && !busy;
+
   const submit = async (e) => {
     e.preventDefault();
-    setError('');
+    if (!canSubmit) return;
+    setError(''); setBusy(true);
     try {
       if (mode === 'login') {
-        const r = await api.login(email, password);
+        const r = await api.login(email.trim(), password);
         localStorage.setItem('token', r.token);
         setUser(r.user);
-        if (r.user.role === 'admin') nav('/admin'); else nav('/dashboard');
+        nav(r.user.role === 'admin' ? '/admin' : '/dashboard');
       } else {
-        const r = await api.register({ name, email, password, regNo, batchNumber });
+        const r = await api.register({ name: name.trim(), email: email.trim(), password, regNo: regNo.trim(), batchNumber });
         localStorage.setItem('token', r.token);
         setUser(r.user);
         nav('/dashboard');
       }
     } catch (err) {
       setError(String(err.message || err));
-      alert(String(err.message || err));
+    } finally {
+      setBusy(false);
     }
   };
 
   return (
     <div className="container narrow">
       <div className="brand mt">
+        <img src="/uet-logo.png" alt="" className="logo-img" onError={(e)=>{e.currentTarget.style.display='none';}}/>
         <div className="logo-dot" />
         <h1>UET Software Engineering</h1>
         <span className="badge">Software</span>
       </div>
-      <div className="card">
-        <div className="nav">
-          <button className={`btn ${mode==='login'?'primary':''}`} onClick={() => setMode('login')}>Login</button>
-          <button className={`btn ${mode==='register'?'primary':''}`} onClick={() => setMode('register')}>Register</button>
-          <span className="muted">First account auto-Admin</span>
+
+      <div className="card auth-card">
+        <div className="tabs">
+          <button className={`tab ${mode==='login'?'active':''}`} onClick={() => setMode('login')}>Login</button>
+          <button className={`tab ${mode==='register'?'active':''}`} onClick={() => setMode('register')}>Register</button>
+          <span className="muted" title="Bootstrap rule">First account becomes Admin</span>
         </div>
-        <form onSubmit={submit} className="row">
+
+        <form onSubmit={submit} className="grid2">
           {mode === 'register' && (
             <>
-              <div className="col">
-                <input className="input" placeholder="Full name" value={name} onChange={e => setName(e.target.value)} />
-              </div>
-              <div className="col">
-                <input className="input" placeholder="Reg No" value={regNo} onChange={e => setRegNo(e.target.value)} />
-              </div>
-              <div className="col">
-                <label className="muted">Batch (year)</label>
+              <label className="form-field">
+                <span>Full name</span>
+                <input className="input" autoComplete="name" placeholder="e.g. Ali Khan"
+                  value={name} onChange={e => setName(e.target.value)} />
+              </label>
+              <label className="form-field">
+                <span>Registration No</span>
+                <input className="input" placeholder="e.g. 2024-SE-001"
+                  value={regNo} onChange={e => setRegNo(e.target.value)} />
+              </label>
+              <label className="form-field">
+                <span>Batch (year)</span>
                 <select className="select" value={batchNumber} onChange={e => setBatchNumber(e.target.value)}>
                   {years.map(y => <option key={y} value={y}>{y}</option>)}
                 </select>
-              </div>
+              </label>
             </>
           )}
-          <div className="col">
-            <input className="input" type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} />
-          </div>
-          <div className="col">
-            <input className="input" type="password" placeholder="Password (min 8 chars)" value={password} onChange={e => setPassword(e.target.value)} />
-          </div>
-          <div className="col">
-            <button className="btn primary" type="submit">{mode === 'login' ? 'Login' : 'Create account'}</button>
+
+          <label className="form-field">
+            <span>Email</span>
+            <input className="input" type="email" autoComplete="email" placeholder="you@uet.edu"
+              value={email} onChange={e => setEmail(e.target.value)} />
+          </label>
+
+          <label className="form-field">
+            <span>Password</span>
+            <div className="pw-wrap">
+              <input className="input" type={showPw ? 'text' : 'password'} autoComplete={mode==='login'?'current-password':'new-password'}
+                placeholder="Minimum 8 characters" value={password} onChange={e => setPassword(e.target.value)} />
+              <button type="button" className="icon-btn eye" onClick={()=>setShowPw(s=>!s)} aria-label="toggle password">
+                {showPw ? '🙈' : '👁️'}
+              </button>
+            </div>
+            {!pwOk(password) && password && <small className="muted">Password must be at least 8 characters</small>}
+          </label>
+
+          <div className="form-actions">
+            <button className="btn primary w100" type="submit" disabled={!canSubmit || busy}>
+              {busy ? 'Please wait…' : (mode === 'login' ? 'Login' : 'Create account')}
+            </button>
           </div>
         </form>
-        {error && <div className="muted" style={{marginTop:8}}>{error}</div>}
+
+        {error && <div className="alert error">{error}</div>}
       </div>
     </div>
   );
@@ -182,14 +240,10 @@ function Admin({ user }) {
   const [batches, setBatches] = useState([]);
   const [selected, setSelected] = useState('');
   const [dateYMD, setDateYMD] = useState(new Date().toISOString().slice(0, 10));
-  const [slotsForDate, setSlotsForDate] = useState([]);   // classes shown in QR dropdown
+  const [slotsForDate, setSlotsForDate] = useState([]);
   const [slotId, setSlotId] = useState('');
   const [qrDataUrl, setQrDataUrl] = useState('');
-
-  // weekly editor state
   const [schedule, setSchedule] = useState({ mon: [], tue: [], wed: [], thu: [], fri: [] });
-
-  // users tab
   const [users, setUsers] = useState([]);
   const [userEdits, setUserEdits] = useState({});
   const getEdit = (u) => userEdits[u.id] ?? { nm: u.name || '', reg: u.reg_no || '', bt: u.batch_id || '' };
@@ -201,7 +255,6 @@ function Admin({ user }) {
     });
   }, []);
 
-  // load weekly schedule from DB when batch changes
   useEffect(() => {
     if (!selected) return;
     (async () => {
@@ -212,17 +265,14 @@ function Admin({ user }) {
     })();
   }, [selected]);
 
-  // load slots for the picked date (weekday) whenever batch or date changes
   useEffect(() => {
     if (!selected || !dateYMD) { setSlotsForDate([]); return; }
     api.slotsOnDate(selected, dateYMD).then(r => setSlotsForDate(r.classes || []));
     setSlotId('');
   }, [selected, dateYMD]);
 
-  // users
   useEffect(() => { if (user?.role === 'admin') api.listUsers().then(r => setUsers(r.users)); }, [user]);
 
-  // editor helpers
   const addClass = (day) =>
     setSchedule(s => ({ ...s, [day]: [...(s[day] || []), { id: crypto.randomUUID?.() || String(Math.random()), subject: '', start: '09:00', end: '10:00', location: 'Room A' }] }));
 
@@ -235,7 +285,6 @@ function Admin({ user }) {
     alert('Schedule saved');
   };
 
-  // quick-fill from your UET image (Mon–Thu; Fri off)
   const quickFillUET2024 = () => {
     setSchedule({
       mon: [
@@ -265,8 +314,7 @@ function Admin({ user }) {
     });
   };
 
-  // drag-drop (same-day reorder)
-  const [drag, setDrag] = useState(null); // { day, idx }
+  const [drag, setDrag] = useState(null);
   const onDragStart = (day, idx) => setDrag({ day, idx });
   const onDragOver = (e) => e.preventDefault();
   const onDrop = (day, idx) => {
@@ -294,6 +342,7 @@ function Admin({ user }) {
   return (
     <div className="container">
       <div className="brand">
+        <img src="/uet-logo.png" alt="" className="logo-img" onError={(e)=>{e.currentTarget.style.display='none';}}/>
         <div className="logo-dot" /><h1>UET Software Engineering</h1><span className="badge">Admin</span>
       </div>
 
@@ -341,13 +390,12 @@ function Admin({ user }) {
             </div>
             {(schedule[d] || []).map((c, i) => (
               <div
-                className="row"
+                className="row slot-row"
                 key={c.id || i}
                 draggable
                 onDragStart={() => onDragStart(d, i)}
                 onDragOver={onDragOver}
                 onDrop={() => onDrop(d, i)}
-                style={{ border:'1px dashed var(--border)', padding:'8px', borderRadius:8 }}
                 title="Drag to reorder"
               >
                 <input className="col input" placeholder="Subject" value={c.subject} onChange={e => onChange(d, i, 'subject', e.target.value)} />
@@ -392,13 +440,12 @@ function Admin({ user }) {
   );
 }
 
-
 function Dashboard({ user }) {
   const [classes, setClasses] = useState([]);
   useEffect(() => { if (user?.batchId) api.todaySchedule(user.batchId).then(r => setClasses(r.classes)); }, [user]);
   return (
     <div className="container">
-      <div className="brand"><div className="logo-dot" /><h1>UET Software Engineering</h1><span className="badge">Student</span></div>
+      <div className="brand"><img src="/uet-logo.png" alt="" className="logo-img" onError={(e)=>{e.currentTarget.style.display='none';}}/><div className="logo-dot" /><h1>UET Software Engineering</h1><span className="badge">Student</span></div>
       <div className="card">
         <h3>Today’s Classes</h3>
         <div className="table-wrap">
@@ -426,18 +473,18 @@ function Scan() {
 
   const startScan = async () => {
     setMsg('');
-    const elId = 'reader';
-    const Html5Qrcode = window.Html5Qrcode; // provided by CDN
+    const Html5Qrcode = window.Html5Qrcode;
     if (!Html5Qrcode) { setMsg('Camera lib not loaded'); return; }
-    const div = document.getElementById(elId) || document.createElement('div');
-    div.id = elId; document.getElementById('reader') || document.body.appendChild(div);
+    const elId = 'reader';
+    let div = document.getElementById(elId);
+    if (!div) { div = document.createElement('div'); div.id = elId; document.querySelector('.card')?.appendChild(div); }
     const qr = new Html5Qrcode(elId);
     setScanning(true);
     try {
       await qr.start({ facingMode: "environment" }, { fps: 10, qrbox: 250 }, async (text) => {
         try {
-          const url = new URL(text);
-          const t = url.searchParams.get('token') || text;
+          let t = text;
+          try { const url = new URL(text); t = url.searchParams.get('token') || text; } catch {}
           setToken(t);
           await api.mark(t);
           setMsg('Marked present ✓');
@@ -454,7 +501,7 @@ function Scan() {
 
   return (
     <div className="container">
-      <div className="brand"><div className="logo-dot" /><h1>UET Software Engineering</h1><span className="badge">Scan</span></div>
+      <div className="brand"><img src="/uet-logo.png" alt="" className="logo-img" onError={(e)=>{e.currentTarget.style.display='none';}}/><div className="logo-dot" /><h1>UET Software Engineering</h1><span className="badge">Scan</span></div>
       <div className="card">
         <div className="row">
           <div className="col"><button className="btn primary" disabled={scanning} onClick={startScan}>Open Camera</button></div>
@@ -464,12 +511,13 @@ function Scan() {
           </div>
         </div>
         {msg && <div className="card">{msg}</div>}
+        <div id="reader" style={{ width: '100%', marginTop: 12 }} />
       </div>
     </div>
   );
 }
 
-/* -------------- Shell -------------- */
+/* ---------------- shell ---------------- */
 function Shell() {
   const { user, setUser, loading } = useAuth();
   const [sideOpen, setSideOpen] = useState(false);
@@ -485,7 +533,6 @@ function Shell() {
           <Route path="/" element={user ? <Navigate to={user.role === 'admin' ? '/admin' : '/dashboard'} /> : <Login setUser={setUser} />} />
           <Route path="/admin" element={user?.role === 'admin' ? <Admin user={user} /> : <Navigate to="/" />} />
           <Route path="/community" element={user ? <Community user={user} /> : <Navigate to="/" />} />
-
           <Route path="/dashboard" element={user ? <Dashboard user={user} /> : <Navigate to="/" />} />
           <Route path="/scan" element={<Scan />} />
         </Routes>
