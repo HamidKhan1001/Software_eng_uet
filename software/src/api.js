@@ -1,7 +1,7 @@
 // src/api.js
 const API_BASE =
   (process.env.REACT_APP_API_URL && process.env.REACT_APP_API_URL.replace(/\/$/, '')) ||
-  'http://localhost:4000';
+  'https://software-eng-uet.onrender.com';
 
 function getToken() {
   return localStorage.getItem('token') || '';
