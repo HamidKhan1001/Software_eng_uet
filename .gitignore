@@ -1,0 +1,38 @@
+# ---- OS junk ----
+.DS_Store
+Thumbs.db
+ehthumbs.db
+
+# ---- IDE/editor ----
+.vscode/
+.idea/
+
+# ---- Node / package managers ----
+node_modules/
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# ---- Build artifacts ----
+build/
+dist/
+.cache/
+coverage/
+
+# ---- Env & secrets (both client and server) ----
+**/.env
+**/.env.*
+!**/.env.example
+!**/.env.sample
+
+# ---- Data exports (attendance files) ----
+data/attendance/
+*.csv
+*.xlsx
+
+# ---- Misc ----
+*.pid
+*.seed
