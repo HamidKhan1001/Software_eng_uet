@@ -1,16 +1,26 @@
 // src/api.js
-const API_BASE =
-  (process.env.REACT_APP_API_URL && process.env.REACT_APP_API_URL.replace(/\/$/, '')) ||
-  'https://software-eng-uet.onrender.com/api';
+// IMPORTANT: REACT_APP_API_URL should be backend ROOT, e.g.
+// https://your-service.onrender.com   (no trailing slash, no /api)
 
-function getToken() {
-  return localStorage.getItem('token') || '';
+const API_ROOT =
+  (process.env.REACT_APP_API_URL && process.env.REACT_APP_API_URL.replace(/\/$/, "")) ||
+  "http://localhost:4000";
+
+// Build URL and ensure exactly one '/api' prefix
+function buildUrl(path) {
+  const clean = path.startsWith("/") ? path : `/${path}`;
+  const withApi = clean.startsWith("/api/") ? clean : `/api${clean}`;
+  return `${API_ROOT}${withApi}`;
 }
 
-async function request(path, method = 'GET', body) {
-  const url = `${API_BASE}${path.startsWith('/') ? path : `/${path}`}`;
-  const headers = { 'Content-Type': 'application/json' };
-  const t = getToken();
+function token() {
+  return localStorage.getItem("token") || "";
+}
+
+async function request(path, method = "GET", body) {
+  const url = buildUrl(path);
+  const headers = { "Content-Type": "application/json" };
+  const t = token();
   if (t) headers.Authorization = `Bearer ${t}`;
 
   let res;
@@ -24,79 +34,63 @@ async function request(path, method = 'GET', body) {
     throw new Error(`Network error: ${err.message || err}`);
   }
 
-  const ct = (res.headers.get('content-type') || '').toLowerCase();
-  const isJson = ct.includes('application/json');
+  // Try to parse JSON if present
+  const ct = (res.headers.get("content-type") || "").toLowerCase();
+  const isJson = ct.includes("application/json");
   const data = isJson ? await res.json().catch(() => ({})) : await res.text();
 
-
   if (!res.ok) {
-    const msg = isJson
-      ? data?.error || JSON.stringify(data)
-      : `${res.status} ${String(data).slice(0, 140)}`;
-    // optional: auto-logout on 401
-    if (res.status === 401) localStorage.removeItem('token');
+    const msg = isJson ? data?.error || JSON.stringify(data) : `${res.status} ${String(data).slice(0, 160)}`;
+    if (res.status === 401) localStorage.removeItem("token");
     throw new Error(msg);
   }
-
   return data;
 }
 
 export const api = {
-  // Auth
+  // --- Auth ---
   register: ({ name, email, password, regNo, batchNumber }) =>
-    request('/api/auth/register', 'POST', { name, email, password, regNo, batchNumber }),
-  login: (email, password) => request('/api/auth/login', 'POST', { email, password }),
-  me: () => request('/api/auth/me', 'GET'),
-markAttendance: async (token) => {
-  return request("attendance/mark", "POST", { token });
-},
+    request("/auth/register", "POST", { name, email, password, regNo, batchNumber }),
+  login: (email, password) => request("/auth/login", "POST", { email, password }),
+  me: () => request("/auth/me"),
 
-  // Batches
-  batches: () => request('/api/batches', 'GET'),
-  createBatch: (number, name) => request('/api/batches', 'POST', { number, name }),
+  // --- Batches ---
+  batches: () => request("/batches"),
+  createBatch: (number, name) => request("/batches", "POST", { number, name }),
 
-  // Community
-communityList: () => request('/api/community', 'GET'),
-communityCreate: ({ body, type }) => request('/api/community', 'POST', { body, type }), // type: 'anon' | 'announcement'
-communityDelete: (id) => request(`/api/community/${encodeURIComponent(id)}`, 'DELETE'),
+  // --- Community ---
+  communityList: () => request("/community"),
+  communityCreate: ({ body, type }) => request("/community", "POST", { body, type }), // 'anon' | 'announcement'
+  communityDelete: (id) => request(`/community/${encodeURIComponent(id)}`, "DELETE"),
 
+  // --- Users (admin) ---
+  listUsers: () => request("/users"),
+  updateUser: (id, body) => request(`/users/${encodeURIComponent(id)}`, "PUT", body),
 
-  // Users (admin)
-  listUsers: () => request('/api/users', 'GET'),
-  updateUser: (id, body) => request(`/api/users/${encodeURIComponent(id)}`, 'PUT', body),
+  // --- Schedule (weekly editor) ---
+  getSchedule: (batchId) => request(`/batches/${encodeURIComponent(batchId)}/schedule`),
+  setSchedule: (batchId, schedule) => request(`/batches/${encodeURIComponent(batchId)}/schedule`, "PUT", { schedule }),
 
-  // Schedule (weekly editor)
-  getSchedule: (batchId) => request(`/api/batches/${encodeURIComponent(batchId)}/schedule`, 'GET'),
-  setSchedule: (batchId, schedule) =>
-    request(`/api/batches/${encodeURIComponent(batchId)}/schedule`, 'PUT', { schedule }),
-
-  // Schedule (views)
-  todaySchedule: (batchId) =>
-    request(`/api/schedule/today?batchId=${encodeURIComponent(batchId || '')}`, 'GET'),
+  // --- Schedule (views) ---
+  todaySchedule: (batchId) => request(`/schedule/today?batchId=${encodeURIComponent(batchId || "")}`),
   slotsOnDate: (batchId, ymd) =>
-    request(
-      `/api/schedule/on-date?batchId=${encodeURIComponent(batchId)}&date=${encodeURIComponent(
-        ymd
-      )}`,
-      'GET'
-    ),
+    request(`/schedule/on-date?batchId=${encodeURIComponent(batchId)}&date=${encodeURIComponent(ymd)}`),
 
-  // QR / Attendance
+  // --- QR / Attendance ---
   generateQR: (batchId, dateYMD, slotId) =>
-    request(`/api/sessions/${encodeURIComponent(batchId)}/generate`, 'POST', { dateYMD, slotId }),
-  mark: (sessionToken) => request('/api/attendance/mark', 'POST', { token: sessionToken }),
+    request(`/sessions/${encodeURIComponent(batchId)}/generate`, "POST", { dateYMD, slotId }),
+  mark: (sessionToken) => request("/attendance/mark", "POST", { token: sessionToken }),
 
-  // Export
-  exportExcel: (dateYMD, batchId) =>
-    window.open(
-      `${API_BASE}/api/attendance/export?dateYMD=${encodeURIComponent(
-        dateYMD
-      )}&batchId=${encodeURIComponent(batchId)}`,
-      '_blank'
-    ),
+  // --- Export (opens a file) ---
+  exportExcel: (dateYMD, batchId) => {
+    const url = buildUrl(
+      `/attendance/export?dateYMD=${encodeURIComponent(dateYMD)}&batchId=${encodeURIComponent(batchId)}`
+    );
+    window.open(url, "_blank");
+  },
 
-  // Health (optional)
-  health: () => request('/api/health', 'GET'),
+  // --- Health ---
+  health: () => request("/health"),
 };
 
 export default api;
