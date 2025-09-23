@@ -129,112 +129,65 @@ function Sidebar({ open, onClose, user }) {
 /* ---------------- pages ---------------- */
 function Login({ setUser }) {
   const nav = useNavigate();
-  const [mode, setMode] = useState('login');
-  const [name, setName] = useState('');
-  const [regNo, setRegNo] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [showPw, setShowPw] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const years = Array.from({ length: 8 }, (_, i) => String(2024 + i));
-  const [batchNumber, setBatchNumber] = useState('2024');
-  const [error, setError] = useState('');
-
-  const canSubmit = mode === 'login'
-    ? emailOk(email) && pwOk(password) && !busy
-    : name.trim() && regNo.trim() && emailOk(email) && pwOk(password) && batchNumber && !busy;
+  const [mode, setMode] = useState("login");
+  const [name, setName] = useState("");
+  const [regNo, setRegNo] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [batchNumber, setBatchNumber] = useState("2024");
+  const [error, setError] = useState("");
 
   const submit = async (e) => {
     e.preventDefault();
-    if (!canSubmit) return;
-    setError(''); setBusy(true);
     try {
-      if (mode === 'login') {
-        const r = await api.login(email.trim(), password);
-        localStorage.setItem('token', r.token);
+      if (mode === "login") {
+        const r = await api.login(email, password);
+        localStorage.setItem("token", r.token);
         setUser(r.user);
-        nav(r.user.role === 'admin' ? '/admin' : '/dashboard');
+        nav(r.user.role === "admin" ? "/admin" : "/dashboard");
       } else {
-        const r = await api.register({ name: name.trim(), email: email.trim(), password, regNo: regNo.trim(), batchNumber });
-        localStorage.setItem('token', r.token);
+        const r = await api.register({ name, email, password, regNo, batchNumber });
+        localStorage.setItem("token", r.token);
         setUser(r.user);
-        nav('/dashboard');
+        nav("/dashboard");
       }
     } catch (err) {
       setError(String(err.message || err));
-    } finally {
-      setBusy(false);
     }
   };
 
   return (
-    <div className="container narrow">
-      <div className="brand mt">
-        <img src="/uet-logo.png" alt="" className="logo-img" onError={(e)=>{e.currentTarget.style.display='none';}}/>
-        <div className="logo-dot" />
-        <h1>UET Software Engineering</h1>
-        <span className="badge">Software</span>
-      </div>
-
-      <div className="card auth-card">
-        <div className="tabs">
-          <button className={`tab ${mode==='login'?'active':''}`} onClick={() => setMode('login')}>Login</button>
-          <button className={`tab ${mode==='register'?'active':''}`} onClick={() => setMode('register')}>Register</button>
-          <span className="muted" title="Bootstrap rule">First account becomes Admin</span>
+    <div className="auth-page">
+      <div className="auth-card">
+        <div className="auth-tabs">
+          <button className={mode === "login" ? "active" : ""} onClick={() => setMode("login")}>Login</button>
+          <button className={mode === "register" ? "active" : ""} onClick={() => setMode("register")}>Register</button>
         </div>
 
-        <form onSubmit={submit} className="grid2">
-          {mode === 'register' && (
+        <form onSubmit={submit} className="auth-form">
+          {mode === "register" && (
             <>
-              <label className="form-field">
-                <span>Full name</span>
-                <input className="input" autoComplete="name" placeholder="e.g. Ali Khan"
-                  value={name} onChange={e => setName(e.target.value)} />
-              </label>
-              <label className="form-field">
-                <span>Registration No</span>
-                <input className="input" placeholder="e.g. 2024-SE-001"
-                  value={regNo} onChange={e => setRegNo(e.target.value)} />
-              </label>
-              <label className="form-field">
-                <span>Batch (year)</span>
-                <select className="select" value={batchNumber} onChange={e => setBatchNumber(e.target.value)}>
-                  {years.map(y => <option key={y} value={y}>{y}</option>)}
-                </select>
-              </label>
+              <input type="text" placeholder="Full Name" value={name} onChange={e => setName(e.target.value)} />
+              <input type="text" placeholder="Reg No" value={regNo} onChange={e => setRegNo(e.target.value)} />
+              <select value={batchNumber} onChange={e => setBatchNumber(e.target.value)}>
+                {Array.from({ length: 8 }, (_, i) => 2024 + i).map(y => (
+                  <option key={y} value={y}>{y}</option>
+                ))}
+              </select>
             </>
           )}
-
-          <label className="form-field">
-            <span>Email</span>
-            <input className="input" type="email" autoComplete="email" placeholder="you@uet.edu"
-              value={email} onChange={e => setEmail(e.target.value)} />
-          </label>
-
-          <label className="form-field">
-            <span>Password</span>
-            <div className="pw-wrap">
-              <input className="input" type={showPw ? 'text' : 'password'} autoComplete={mode==='login'?'current-password':'new-password'}
-                placeholder="Minimum 8 characters" value={password} onChange={e => setPassword(e.target.value)} />
-              <button type="button" className="icon-btn eye" onClick={()=>setShowPw(s=>!s)} aria-label="toggle password">
-                {showPw ? '🙈' : '👁️'}
-              </button>
-            </div>
-            {!pwOk(password) && password && <small className="muted">Password must be at least 8 characters</small>}
-          </label>
-
-          <div className="form-actions">
-            <button className="btn primary w100" type="submit" disabled={!canSubmit || busy}>
-              {busy ? 'Please wait…' : (mode === 'login' ? 'Login' : 'Create account')}
-            </button>
-          </div>
+          <input type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} />
+          <input type="password" placeholder="Password (min 8 chars)" value={password} onChange={e => setPassword(e.target.value)} />
+          <button type="submit" className="btn-primary">
+            {mode === "login" ? "Login" : "Create Account"}
+          </button>
         </form>
-
-        {error && <div className="alert error">{error}</div>}
+        {error && <p className="error">{error}</p>}
       </div>
     </div>
   );
 }
+
 
 function Admin({ user }) {
   const [batches, setBatches] = useState([]);
@@ -517,29 +470,41 @@ function Scan() {
   );
 }
 
-/* ---------------- shell ---------------- */
+/* ---------- Shell ---------- */
 function Shell() {
   const { user, setUser, loading } = useAuth();
   const [sideOpen, setSideOpen] = useState(false);
 
   if (loading) return <div className="container"><div className="card">Loading…</div></div>;
 
+  // If no user, only show auth routes (no header/sidebar)
+  if (!user) {
+    return (
+      <Routes>
+        <Route path="/" element={<Login setUser={setUser} />} />
+        <Route path="*" element={<Navigate to="/" />} />
+      </Routes>
+    );
+  }
+
+  // Logged-in: show full app shell
   return (
     <>
       <Header user={user} onToggleSidebar={() => setSideOpen(true)} />
       <Sidebar open={sideOpen} onClose={() => setSideOpen(false)} user={user} />
       <main className="main">
         <Routes>
-          <Route path="/" element={user ? <Navigate to={user.role === 'admin' ? '/admin' : '/dashboard'} /> : <Login setUser={setUser} />} />
-          <Route path="/admin" element={user?.role === 'admin' ? <Admin user={user} /> : <Navigate to="/" />} />
-          <Route path="/community" element={user ? <Community user={user} /> : <Navigate to="/" />} />
-          <Route path="/dashboard" element={user ? <Dashboard user={user} /> : <Navigate to="/" />} />
+          <Route path="/" element={<Navigate to={user.role === 'admin' ? '/admin' : '/dashboard'} />} />
+          <Route path="/admin" element={user.role === 'admin' ? <Admin user={user} /> : <Navigate to="/" />} />
+          <Route path="/community" element={<Community user={user} />} />
+          <Route path="/dashboard" element={<Dashboard user={user} />} />
           <Route path="/scan" element={<Scan />} />
         </Routes>
       </main>
     </>
   );
 }
+
 
 export default function App() {
   return <BrowserRouter><Shell /></BrowserRouter>;
