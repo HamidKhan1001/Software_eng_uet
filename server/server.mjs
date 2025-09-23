@@ -23,7 +23,7 @@ dotenv.config();
 
 app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
 app.use(cors({
-  origin: ['http://localhost:3000','http://127.0.0.1:3000','https://software-eng-uet.vercel.app/'],
+  origin: ['http://localhost:3000','http://127.0.0.1:3000','https://software-eng-uet.vercel.app'],
   methods: ['GET','POST','PUT','DELETE','OPTIONS'],
   allowedHeaders: ['Content-Type','Authorization']
   
