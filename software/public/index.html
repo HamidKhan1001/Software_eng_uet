@@ -3,6 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <link rel="icon" href="%PUBLIC_URL%/favicon.ico" />
+    <!-- KEEPING your pinned html5-qrcode include -->
     <script defer src="https://unpkg.com/html5-qrcode@2.3.10/minified/html5-qrcode.min.js"></script>
 
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -23,7 +24,8 @@
     <noscript>You need to enable JavaScript to run this app.</noscript>
     <div id="root"></div>
 
-    <!-- QR code scanner library -->
-<script defer src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+    <!-- KEEPING your second include as requested (no removal). 
+         The app code now feature-detects and also supports a native fallback. -->
+    <script defer src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
   </body>
 </html>
