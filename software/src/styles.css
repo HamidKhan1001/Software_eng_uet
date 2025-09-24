@@ -191,3 +191,60 @@ img{max-width:100%;display:block}
   margin-top: 10px;
   font-size: 14px;
 }
+
+/* =========================================================
+   APPENDED: Mobile responsiveness + sidebar + duplicate-brand fixes
+   (nothing above was removed)
+   ========================================================= */
+
+/* Hide any in-page brand headers so only the top header shows */
+.main .brand{ display:none !important; }
+
+/* Make tables nicer on phones */
+.table-wrap{
+  overflow-x:auto;
+  -webkit-overflow-scrolling:touch;
+}
+.table{ min-width:520px; } /* enables horizontal scroll inside .table-wrap on small screens */
+
+/* Mobile rules */
+@media (max-width: 768px){
+
+  /* Extra safety: never show desktop nav on mobile */
+  .topnav{ display:none !important; }
+
+  /* Slightly smaller title next to logo to avoid wrapping */
+  .brand-text h1{ font-size:16px; }
+
+  /* Room for notches */
+  .header{ padding:10px 12px; }
+
+  /* Sidebar should cover entire screen (fix “half-open” issue) */
+  .sidebar{
+    inset:0 0 0 0 !important;   /* full width */
+    max-width:100% !important;
+    width:100% !important;
+    transform:translateX(-100%);
+    transition:transform .3s ease-in-out;
+  }
+  .sidebar.open{ transform:translateX(0); }
+
+  /* Bigger tap targets in the drawer */
+  .side-list li a{ padding:14px 16px; font-size:18px; }
+
+  /* Profile: keep compact on small screens */
+  .profile-name{ display:none; }
+  .profile-btn{ padding:6px 8px; }
+
+  /* Cards spacing */
+  .card{ padding:12px; }
+
+  /* Tables: reduce cell padding a bit */
+  .table th,.table td{ padding:8px; }
+}
+
+/* Backdrop full-coverage guaranteed */
+.backdrop{
+  position:fixed; top:0; left:0; right:0; bottom:0;
+  background:rgba(0,0,0,.45); z-index:39; /* under sidebar (40), over page */
+}
