@@ -1,6 +1,4 @@
-// src/api.js
-// IMPORTANT: REACT_APP_API_URL should be backend ROOT, e.g.
-// https://your-service.onrender.com   (no trailing slash, no /api)
+
 
 const API_ROOT =
   (process.env.REACT_APP_API_URL && process.env.REACT_APP_API_URL.replace(/\/$/, "")) ||
@@ -53,7 +51,21 @@ export const api = {
     request("/auth/register", "POST", { name, email, password, regNo, batchNumber }),
   login: (email, password) => request("/auth/login", "POST", { email, password }),
   me: () => request("/auth/me"),
+// --- Auth ---
+register: ({ name, email, password, regNo, batchNumber }) =>
+  request("/auth/register", "POST", { name, email, password, regNo, batchNumber }),
+login: (email, password) => request("/auth/login", "POST", { email, password }),
+me: () => request("/auth/me"),
+requestReset: (email) => request("/auth/request-reset", "POST", { email }),   // ⬅ ADD THIS
+resetPassword: (token, password) => request("/auth/reset-password", "POST", { token, password }), // ⬅ ADD THIS
 
+
+// --- Attendance (admin all export + view) ---
+allAttendance: () => request("/attendance/all"), // JSON table view
+allExport: () => {
+  const url = buildUrl(`/attendance/all-export`);
+  window.open(url, "_blank"); // direct Excel download
+},
   // --- Batches ---
   batches: () => request("/batches"),
   createBatch: (number, name) => request("/batches", "POST", { number, name }),

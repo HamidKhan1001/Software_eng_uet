@@ -1,6 +1,9 @@
 
 import dotenv from 'dotenv';
 import dayjs from 'dayjs';
+import nodemailer from "nodemailer";
+import cron from "node-cron";
+import ExcelJS from "exceljs"; // already imported
 
 import express from 'express';
 import cors from 'cors';
@@ -20,6 +23,80 @@ import path from 'path';
 const app = express();
 app.use(express.json());
 dotenv.config();
+const sql = neon(process.env.DATABASE_URL);
+
+
+
+const transporter = nodemailer.createTransport({
+  host: process.env.SMTP_HOST,
+  port: process.env.SMTP_PORT,
+  secure: true, // Gmail = 465 (SSL)
+  auth: {
+    user: process.env.SMTP_USER,
+    pass: process.env.SMTP_PASS,
+  },
+});
+
+export async function sendMail(to, subject, text, html) {
+  await transporter.sendMail({
+    from: `"UET SE Portal" <${process.env.SMTP_USER}>`,
+    to,
+    subject,
+    text,
+    html,
+  });
+}
+// Run every minute
+cron.schedule("* * * * *", async () => {
+  try {
+    const now = dayjs();
+    const todayYMD = now.format("YYYY-MM-DD");
+    const wd = now.day(); // 0=Sun..6=Sat
+    if (wd === 0 || wd === 6) return; // skip weekends
+
+    // Check for slots starting in exactly 15 minutes
+    const targetTime = now.add(15, "minute").format("HH:mm");
+
+    // Find classes that match
+    const slots = await sql`
+      SELECT s.*, b.name as batch_name
+      FROM schedule_slots s
+      JOIN batches b ON b.id = s.batch_id
+      WHERE weekday=${wd} AND start_t=${targetTime}
+    `;
+
+    for (const slot of slots) {
+      // Avoid duplicate send
+      const existing = await sql`
+        SELECT 1 FROM reminders_sent
+        WHERE slot_id=${slot.id} AND date_ymd=${todayYMD} LIMIT 1
+      `;
+      if (existing.length) continue;
+
+      const students = await sql`
+        SELECT name,email FROM users
+        WHERE role='student' AND batch_id=${slot.batch_id}
+      `;
+      if (students.length === 0) continue;
+
+      const subject = `⏰ Reminder: ${slot.subject} in 15 minutes`;
+      const bodyText = `Your class starts at ${slot.start_t} in ${slot.location}. Subject: ${slot.subject}`;
+      const bodyHtml = `<p>Your class starts at <b>${slot.start_t}</b> in <b>${slot.location}</b>.</p>
+                        <p>Subject: <b>${slot.subject}</b></p>`;
+
+      for (const s of students) {
+        await sendMail(s.email, subject, bodyText, bodyHtml);
+      }
+
+      // Mark reminder as sent
+      await sql`INSERT INTO reminders_sent (id,batch_id,slot_id,date_ymd)
+                VALUES (${uuid()},${slot.batch_id},${slot.id},${todayYMD})`;
+      console.log(`Reminder sent for ${slot.subject} (${slot.start_t}) batch ${slot.batch_name}`);
+    }
+  } catch (err) {
+    console.error("Reminder cron error:", err);
+  }
+});
 
 app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
 app.use(cors({
@@ -32,7 +109,6 @@ app.use(cors({
 const PORT = process.env.PORT || 4000;
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret';
 const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:3000';
-const sql = neon(process.env.DATABASE_URL);
 
 // --- utils ---
 const dataDir = path.join(process.cwd(), 'data', 'attendance');
@@ -62,6 +138,29 @@ await sql`CREATE TABLE IF NOT EXISTS community_posts (
   created_at TIMESTAMPTZ DEFAULT now(),
   expires_at TIMESTAMPTZ
 )`;
+  await sql`CREATE TABLE IF NOT EXISTS reset_tokens (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  token TEXT NOT NULL,
+  expires_at TIMESTAMPTZ NOT NULL
+)`;
+// Reset password tokens
+await sql`CREATE TABLE IF NOT EXISTS reset_tokens (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  token TEXT NOT NULL,
+  expires_at TIMESTAMPTZ NOT NULL
+)`;
+
+// Class reminder tracking
+await sql`CREATE TABLE IF NOT EXISTS reminders_sent (
+  id TEXT PRIMARY KEY,
+  batch_id TEXT NOT NULL,
+  slot_id TEXT NOT NULL,
+  date_ymd TEXT NOT NULL,
+  sent_at TIMESTAMPTZ DEFAULT now()
+)`;
+
 await sql`CREATE INDEX IF NOT EXISTS community_created_idx ON community_posts (created_at DESC)`;
 const communityLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -97,6 +196,46 @@ app.get('/api/community', auth, async (req, res) => {
   }));
   res.json({ posts });
 });
+
+app.post('/api/notify/schedule', auth, admin, async (req, res) => {
+  const { dateYMD } = req.body || {};
+  const d = dayjs(dateYMD || new Date());
+  const wd = d.day();
+  if (wd === 0 || wd === 6) return res.json({ ok: false, msg: 'Weekend - no classes' });
+
+  // Get all batches + their users
+  const batches = await sql`SELECT * FROM batches`;
+  for (const b of batches) {
+    const classes = await sql`
+      SELECT * FROM schedule_slots
+      WHERE batch_id=${b.id} AND weekday=${wd}
+      ORDER BY start_t
+    `;
+    if (classes.length === 0) continue;
+
+    const students = await sql`SELECT * FROM users WHERE role='student' AND batch_id=${b.id}`;
+    const bodyText = classes.map(
+      (c) => `📘 ${c.subject} ${c.start_t}–${c.end_t} @ ${c.location}`
+    ).join("\n");
+
+    const bodyHtml = `<h3>Today’s Classes</h3><ul>` +
+      classes.map((c) => `<li><b>${c.subject}</b> ${c.start_t}–${c.end_t} @ ${c.location}</li>`).join("") +
+      `</ul>`;
+
+    for (const s of students) {
+      sendMail(
+        s.email,
+        `📅 Your classes for ${d.format("YYYY-MM-DD")}`,
+        bodyText,
+        bodyHtml
+      );
+    }
+  }
+
+  res.json({ ok: true, msg: 'Emails sent (queued)' });
+});
+
+
 app.post('/api/community', auth, async (req, res) => {
   let { body, type } = req.body || {};
   body = String(body || '').trim();
@@ -113,6 +252,15 @@ app.post('/api/community', auth, async (req, res) => {
     INSERT INTO community_posts (id, author_id, body, type, pinned, expires_at)
     VALUES (${id}, ${req.user.id}, ${body}, ${finalType}, ${finalType === 'announcement'}, ${expiresAt})
   `;
+
+await sql`CREATE TABLE IF NOT EXISTS reminders_sent (
+  id TEXT PRIMARY KEY,
+  batch_id TEXT NOT NULL,
+  slot_id TEXT NOT NULL,
+  date_ymd TEXT NOT NULL,
+  sent_at TIMESTAMPTZ DEFAULT now()
+)`;
+
 
   res.json({
     post: {
@@ -269,6 +417,42 @@ app.get('/api/batches', auth, async (_req, res) => {
   res.json({ batches });
 });
 
+app.post('/api/auth/request-reset', async (req, res) => {
+  const { email } = req.body || {};
+  const normEmail = (email || '').trim().toLowerCase();
+  const [u] = await sql`SELECT * FROM users WHERE email=${normEmail} LIMIT 1`;
+  if (!u) return res.status(200).json({ ok: true }); // don't reveal existence
+
+  const token = uuid();
+  const exp = dayjs().add(1, 'hour').toISOString();
+  await sql`INSERT INTO reset_tokens (id,user_id,token,expires_at)
+            VALUES (${uuid()},${u.id},${token},${exp})`;
+
+  const link = `${CLIENT_URL}/reset-password?token=${token}`;
+  await sendMail(
+    u.email,
+    "🔑 Reset your password",
+    `Click the link to reset your password: ${link}`,
+    `<p>Click below to reset your password:</p><p><a href="${link}">${link}</a></p>`
+  );
+
+  res.json({ ok: true });
+});
+app.post('/api/auth/reset-password', async (req, res) => {
+  const { token, password } = req.body || {};
+  if (!token || !password) return res.status(400).json({ error: 'Missing fields' });
+  if (String(password).length < 8) return res.status(400).json({ error: 'Password too short' });
+
+  const rows = await sql`SELECT * FROM reset_tokens WHERE token=${token} AND expires_at > now() LIMIT 1`;
+  const r = rows[0];
+  if (!r) return res.status(400).json({ error: 'Invalid/expired token' });
+
+  const hash = bcrypt.hashSync(password, 10);
+  await sql`UPDATE users SET password=${hash} WHERE id=${r.user_id}`;
+  await sql`DELETE FROM reset_tokens WHERE token=${token}`;
+
+  res.json({ ok: true, msg: 'Password updated' });
+});
 
 app.post('/api/batches', auth, admin, async (req,res)=>{
   const { number, name } = req.body || {};
@@ -383,6 +567,74 @@ app.get('/api/attendance/export', auth, admin, async (req,res)=>{
   res.setHeader('Content-Disposition',`attachment; filename="attendance_${dateYMD}_${batchId}.xlsx"`);
   await wb.xlsx.write(res); res.end();
 });
+
+// Admin: Export ALL attendance grouped by date (multi-sheet Excel)
+app.get('/api/attendance/all-export', auth, admin, async (_req, res) => {
+  try {
+    // Fetch all unique dates
+    const dates = await sql`SELECT DISTINCT date_ymd FROM attendance ORDER BY date_ymd`;
+
+    if (dates.length === 0) {
+      return res.status(404).json({ error: 'No attendance records yet' });
+    }
+
+    const wb = new ExcelJS.Workbook();
+
+    for (const d of dates) {
+      const rows = await sql`
+        SELECT *
+        FROM attendance
+        WHERE date_ymd=${d.date_ymd}
+        ORDER BY batch_id, start_t
+      `;
+
+      const ws = wb.addWorksheet(`${d.date_ymd}`);
+      ws.columns = [
+        { header: 'Timestamp', key: 'ts', width: 24 },
+        { header: 'Date', key: 'date', width: 12 },
+        { header: 'Batch ID', key: 'batch_id', width: 14 },
+        { header: 'Session ID', key: 'session_id', width: 36 },
+        { header: 'Reg No', key: 'reg_no', width: 14 },
+        { header: 'Name', key: 'name', width: 22 },
+        { header: 'Subject', key: 'subject', width: 20 },
+        { header: 'Start', key: 'start_t', width: 10 },
+        { header: 'End', key: 'end_t', width: 10 },
+        { header: 'Location', key: 'location', width: 18 },
+      ];
+
+      rows.forEach(r => {
+        ws.addRow({
+          ts: r.ts,
+          date: r.date_ymd,
+          batch_id: r.batch_id,
+          session_id: r.session_id,
+          reg_no: r.reg_no,
+          name: r.name,
+          subject: r.subject,
+          start_t: r.start_t,
+          end_t: r.end_t,
+          location: r.location,
+        });
+      });
+    }
+
+    res.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    );
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="attendance_all.xlsx"`
+    );
+
+    await wb.xlsx.write(res);
+    res.end();
+  } catch (err) {
+    console.error('ALL EXPORT ERROR', err);
+    res.status(500).json({ error: 'Failed to export attendance' });
+  }
+});
+
 
 app.get('/api/health', (_req,res)=>res.json({ ok:true, now:new Date().toISOString() }));
 // Get full weekly schedule for a batch (Mon..Fri grouped), sorted by start time
