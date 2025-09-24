@@ -3,7 +3,6 @@ import dotenv from 'dotenv';
 import dayjs from 'dayjs';
 import nodemailer from "nodemailer";
 import cron from "node-cron";
-import ExcelJS from "exceljs"; // already imported
 
 import express from 'express';
 import cors from 'cors';
