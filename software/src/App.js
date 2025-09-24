@@ -159,6 +159,17 @@ function Login({ setUser }) {
   return (
     <div className="auth-page">
       <div className="auth-card">
+        {/* ===== Added: logo+title on login/register (kept everything else) ===== */}
+        <div className="auth-brand" style={{textAlign:'center', marginBottom:10}}>
+          <img
+            src="/uet-logo.png"
+            alt="UET SE"
+            style={{width:64, height:64, objectFit:'contain', display:'block', margin:'0 auto 6px'}}
+            onError={(e) => { e.currentTarget.style.display = 'none'; }}
+          />
+          <h2 style={{fontSize:18, margin:0}}>UET Software Engineering</h2>
+        </div>
+
         <div className="auth-tabs">
           <button className={mode === "login" ? "active" : ""} onClick={() => setMode("login")}>Login</button>
           <button className={mode === "register" ? "active" : ""} onClick={() => setMode("register")}>Register</button>
@@ -294,7 +305,8 @@ function Admin({ user }) {
 
   return (
     <div className="container">
-      <div className="brand">
+      {/* kept original brand but hidden to avoid second header */}
+      <div className="brand" style={{display:'none'}}>
         <img src="/uet-logo.png" alt="" className="logo-img" onError={(e)=>{e.currentTarget.style.display='none';}}/>
         <div className="logo-dot" /><h1>UET Software Engineering</h1><span className="badge">Admin</span>
       </div>
@@ -398,7 +410,8 @@ function Dashboard({ user }) {
   useEffect(() => { if (user?.batchId) api.todaySchedule(user.batchId).then(r => setClasses(r.classes)); }, [user]);
   return (
     <div className="container">
-      <div className="brand"><img src="/uet-logo.png" alt="" className="logo-img" onError={(e)=>{e.currentTarget.style.display='none';}}/><div className="logo-dot" /><h1>UET Software Engineering</h1><span className="badge">Student</span></div>
+      {/* kept original brand but hidden to avoid second header */}
+      <div className="brand" style={{display:'none'}}><img src="/uet-logo.png" alt="" className="logo-img" onError={(e)=>{e.currentTarget.style.display='none';}}/><div className="logo-dot" /><h1>UET Software Engineering</h1><span className="badge">Student</span></div>
       <div className="card">
         <h3>Today’s Classes</h3>
         <div className="table-wrap">
@@ -424,10 +437,30 @@ function Scan() {
   const [msg, setMsg] = useState('');
   const [scanning, setScanning] = useState(false);
 
-  const startScan = async () => {
-    setMsg('');
+  // Added for native BarcodeDetector fallback
+  const videoRef = useRef(null);
+  const stopStreamRef = useRef(null);
+
+  useEffect(() => {
+    // cleanup on unmount
+    return () => {
+      if (stopStreamRef.current) {
+        try { stopStreamRef.current(); } catch {}
+      }
+    };
+  }, []);
+
+  const markToken = async (text) => {
+    let t = text;
+    try { const url = new URL(text); t = url.searchParams.get('token') || text; } catch {}
+    setToken(t);
+    await api.mark(t);
+    setMsg('Marked present ✓');
+  };
+
+  const startWithHtml5Qrcode = async () => {
     const Html5Qrcode = window.Html5Qrcode;
-    if (!Html5Qrcode) { setMsg('Camera lib not loaded'); return; }
+    if (!Html5Qrcode) return false;
     const elId = 'reader';
     let div = document.getElementById(elId);
     if (!div) { div = document.createElement('div'); div.id = elId; document.querySelector('.card')?.appendChild(div); }
@@ -436,25 +469,79 @@ function Scan() {
     try {
       await qr.start({ facingMode: "environment" }, { fps: 10, qrbox: 250 }, async (text) => {
         try {
-          let t = text;
-          try { const url = new URL(text); t = url.searchParams.get('token') || text; } catch {}
-          setToken(t);
-          await api.mark(t);
-          setMsg('Marked present ✓');
+          await markToken(text);
         } catch (e) { setMsg('Error: ' + e.message); }
         await qr.stop(); setScanning(false);
       });
-    } catch (e) { setMsg('Camera error: ' + e.message); setScanning(false); }
+      return true;
+    } catch (e) { setMsg('Camera error: ' + e.message); setScanning(false); return false; }
+  };
+
+  const startWithBarcodeDetector = async () => {
+    if (!('BarcodeDetector' in window)) return false;
+
+    const isLocalhost = /^https?:\/\/(localhost|127\.0\.0\.1)/i.test(
+      window.location.origin
+    );
+    if (!isLocalhost && !window.isSecureContext) {
+      setMsg("Camera needs HTTPS (or run on localhost).");
+      return true; // handled
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
+      const video = videoRef.current;
+      if (!video) { stream.getTracks().forEach(t => t.stop()); return true; }
+      video.srcObject = stream;
+      await video.play();
+      setScanning(true);
+      stopStreamRef.current = () => stream.getTracks().forEach(t => t.stop());
+
+      const detector = new window.BarcodeDetector({ formats: ['qr_code'] });
+      let live = true;
+
+      const tick = async () => {
+        if (!live) return;
+        try {
+          const codes = await detector.detect(video);
+          if (codes && codes[0]?.rawValue) {
+            live = false;
+            stopStreamRef.current?.();
+            setScanning(false);
+            await markToken(codes[0].rawValue);
+            return;
+          }
+        } catch {}
+        requestAnimationFrame(tick);
+      };
+      tick();
+      return true;
+    } catch (e) {
+      setMsg('Camera error: ' + (e?.message || e));
+      setScanning(false);
+      return true;
+    }
+  };
+
+  const startScan = async () => {
+    setMsg('');
+    // Try html5-qrcode first
+    if (await startWithHtml5Qrcode()) return;
+    // Then native BarcodeDetector
+    if (await startWithBarcodeDetector()) return;
+    // Otherwise notify
+    setMsg('Camera library not available. Use the token field below.');
   };
 
   const submit = async () => {
-    try { await api.mark(token); setMsg('Marked present ✓'); }
+    try { await markToken(token); }
     catch (e) { setMsg('Error: ' + e.message); }
   };
 
   return (
     <div className="container">
-      <div className="brand"><img src="/uet-logo.png" alt="" className="logo-img" onError={(e)=>{e.currentTarget.style.display='none';}}/><div className="logo-dot" /><h1>UET Software Engineering</h1><span className="badge">Scan</span></div>
+      {/* kept original brand but hidden to avoid second header */}
+      <div className="brand" style={{display:'none'}}><img src="/uet-logo.png" alt="" className="logo-img" onError={(e)=>{e.currentTarget.style.display='none';}}/><div className="logo-dot" /><h1>UET Software Engineering</h1><span className="badge">Scan</span></div>
       <div className="card">
         <div className="row">
           <div className="col"><button className="btn primary" disabled={scanning} onClick={startScan}>Open Camera</button></div>
@@ -465,6 +552,8 @@ function Scan() {
         </div>
         {msg && <div className="card">{msg}</div>}
         <div id="reader" style={{ width: '100%', marginTop: 12 }} />
+        {/* video for BarcodeDetector fallback */}
+        <video ref={videoRef} playsInline muted style={{ width:'100%', marginTop:12, display: scanning ? 'block' : 'none' }} />
       </div>
     </div>
   );
