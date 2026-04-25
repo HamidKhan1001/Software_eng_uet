@@ -77,9 +77,15 @@ app.use(helmet({
   contentSecurityPolicy: false
 }));
 
-// Simple CORS configuration
+// Simple CORS configuration - allow all origins for now
 app.use(cors({
-  origin: true,
+  origin: function(origin, callback) {
+    // Allow requests with no origin (mobile apps, curl, etc)
+    if(!origin) return callback(null, true);
+    
+    // Allow all origins explicitly to debug CORS issues
+    callback(null, true);
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
