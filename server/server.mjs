@@ -1,269 +1,605 @@
-
-import dotenv from 'dotenv';
-import dayjs from 'dayjs';
-import nodemailer from "nodemailer";
-import cron from "node-cron";
-
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
 import jwt from 'jsonwebtoken';
-import bcrypt from 'bcryptjs';
-import { neon } from '@neondatabase/serverless';
+import bcryptjs from 'bcryptjs';
+import dotenv from 'dotenv';
+import dayjs from 'dayjs';
+import { v4 as uuid } from 'uuid';
+import nodemailer from 'nodemailer';
 import QRCode from 'qrcode';
 import ExcelJS from 'exceljs';
-import { v4 as uuid } from 'uuid';
+import cron from 'node-cron';
+import { MongoClient, ObjectId } from 'mongodb';
 import fs from 'fs';
-import rateLimit from 'express-rate-limit';
-
 import path from 'path';
+import { fileURLToPath } from 'url';
 
-// --- app ---
-const app = express();
-app.use(express.json());
+// Setup
 dotenv.config();
-const sql = neon(process.env.DATABASE_URL);
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const dataDir = path.join(__dirname, 'attendance-data');
 
+const PORT = process.env.PORT || 4000;
+const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:3000';
+const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-key';
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/software_eng';
 
+let db = null;
+let collections = {};
 
+// Initialize MongoDB
+async function initMongoDB() {
+  try {
+    if (!MONGODB_URI || MONGODB_URI.includes('localhost')) {
+      console.log('⚠️  Using localhost MongoDB - install MongoDB locally or use connection string');
+    }
+    
+    const client = new MongoClient(MONGODB_URI);
+    await client.connect();
+    console.log('✅ Connected to MongoDB');
+    
+    db = client.db('software_eng');
+    
+    // Create collections if they don't exist
+    const collectionNames = ['users', 'batches', 'schedule_slots', 'attendance', 
+                            'community_posts', 'reset_tokens', 'announcements', 
+                            'past_papers', 'course_notes', 'timetables', 'reminders_sent'];
+    
+    for (const name of collectionNames) {
+      const exists = await db.listCollections({ name }).toArray();
+      if (exists.length === 0) {
+        await db.createCollection(name);
+        console.log(`✅ Created collection: ${name}`);
+      }
+      collections[name] = db.collection(name);
+    }
+    
+    // Create indexes
+    await collections.users.createIndex({ email: 1 }, { unique: true });
+    await collections.batches.createIndex({ number: 1 }, { unique: true });
+    await collections.community_posts.createIndex({ created_at: -1 });
+    await collections.attendance.createIndex({ date_ymd: 1, batch_id: 1 });
+    
+    return true;
+  } catch (err) {
+    console.error('❌ MongoDB connection failed:', err.message);
+    return false;
+  }
+}
+
+// Express App
+const app = express();
+app.use(helmet());
+app.use(cors({ origin: CLIENT_URL, credentials: true }));
+app.use(express.json());
+
+// Email setup
 const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST,
-  port: process.env.SMTP_PORT,
-  secure: true, // Gmail = 465 (SSL)
+  host: process.env.SMTP_HOST || 'smtp.gmail.com',
+  port: parseInt(process.env.SMTP_PORT || '465'),
+  secure: true,
   auth: {
     user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS,
-  },
-});
-
-export async function sendMail(to, subject, text, html) {
-  await transporter.sendMail({
-    from: `"UET SE Portal" <${process.env.SMTP_USER}>`,
-    to,
-    subject,
-    text,
-    html,
-  });
-}
-// Run every minute
-cron.schedule("* * * * *", async () => {
-  try {
-    const now = dayjs();
-    const todayYMD = now.format("YYYY-MM-DD");
-    const wd = now.day(); // 0=Sun..6=Sat
-    if (wd === 0 || wd === 6) return; // skip weekends
-
-    // Check for slots starting in exactly 15 minutes
-    const targetTime = now.add(15, "minute").format("HH:mm");
-
-    // Find classes that match
-    const slots = await sql`
-      SELECT s.*, b.name as batch_name
-      FROM schedule_slots s
-      JOIN batches b ON b.id = s.batch_id
-      WHERE weekday=${wd} AND start_t=${targetTime}
-    `;
-
-    for (const slot of slots) {
-      // Avoid duplicate send
-      const existing = await sql`
-        SELECT 1 FROM reminders_sent
-        WHERE slot_id=${slot.id} AND date_ymd=${todayYMD} LIMIT 1
-      `;
-      if (existing.length) continue;
-
-      const students = await sql`
-        SELECT name,email FROM users
-        WHERE role='student' AND batch_id=${slot.batch_id}
-      `;
-      if (students.length === 0) continue;
-
-      const subject = `⏰ Reminder: ${slot.subject} in 15 minutes`;
-      const bodyText = `Your class starts at ${slot.start_t} in ${slot.location}. Subject: ${slot.subject}`;
-      const bodyHtml = `<p>Your class starts at <b>${slot.start_t}</b> in <b>${slot.location}</b>.</p>
-                        <p>Subject: <b>${slot.subject}</b></p>`;
-
-      for (const s of students) {
-        await sendMail(s.email, subject, bodyText, bodyHtml);
-      }
-
-      // Mark reminder as sent
-      await sql`INSERT INTO reminders_sent (id,batch_id,slot_id,date_ymd)
-                VALUES (${uuid()},${slot.batch_id},${slot.id},${todayYMD})`;
-      console.log(`Reminder sent for ${slot.subject} (${slot.start_t}) batch ${slot.batch_name}`);
-    }
-  } catch (err) {
-    console.error("Reminder cron error:", err);
+    pass: process.env.SMTP_PASS
   }
 });
 
-app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
-app.use(cors({
-  origin: ['http://localhost:3000','http://127.0.0.1:3000','https://software-eng-uet.vercel.app'],
-  methods: ['GET','POST','PUT','DELETE','OPTIONS'],
-  allowedHeaders: ['Content-Type','Authorization']
-  
-}));
-
-const PORT = process.env.PORT || 4000;
-const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret';
-const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:3000';
-
-// --- utils ---
-const dataDir = path.join(process.cwd(), 'data', 'attendance');
-fs.mkdirSync(dataDir, { recursive: true });
-const dowIdx = (d) => dayjs(d).day();
-const isWeekend = (d) => [0,6].includes(dowIdx(d));
-const signUser = (u) =>
-  jwt.sign({ id:u.id, role:u.role, name:u.name, regNo:u.reg_no, batchId:u.batch_id }, JWT_SECRET, { expiresIn:'7d' });
-const signSession = (payload) => {
-  const exp = dayjs(payload.dateYMD + ' 23:59:59').unix();
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: Math.max(60, exp - dayjs().unix()) });
+const sendMail = (to, subject, text, html) => {
+  if (!process.env.SMTP_USER) {
+    console.log('[MAIL SKIPPED - no SMTP config]', { to, subject });
+    return;
+  }
+  transporter.sendMail({ from: process.env.SMTP_USER, to, subject, text, html }, (err) => {
+    if (err) console.error('Mail error:', err.message);
+  });
 };
-const auth = (req,res,next)=>{ try{ req.user=jwt.verify((req.headers.authorization||'').replace('Bearer ','').trim(),JWT_SECRET); next(); }catch{ res.status(401).json({error:'Unauthorized'});} };
-const admin = (req,res,next)=>{ if(req.user?.role!=='admin') return res.status(403).json({error:'Admin only'}); next(); };
 
-// --- DB bootstrap (each statement separately for Neon) ---
-await sql`CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, name TEXT NOT NULL, email TEXT UNIQUE NOT NULL, password TEXT NOT NULL, role TEXT NOT NULL CHECK (role IN ('admin','student')), reg_no TEXT, batch_id TEXT)`;
-await sql`CREATE TABLE IF NOT EXISTS batches (id TEXT PRIMARY KEY, number TEXT UNIQUE NOT NULL, name TEXT NOT NULL)`;
-await sql`CREATE TABLE IF NOT EXISTS schedule_slots (id TEXT PRIMARY KEY, batch_id TEXT NOT NULL, weekday INT NOT NULL, subject TEXT NOT NULL, start_t TEXT NOT NULL, end_t TEXT NOT NULL, location TEXT NOT NULL)`;
-await sql`CREATE TABLE IF NOT EXISTS attendance (id BIGSERIAL PRIMARY KEY, ts TIMESTAMPTZ DEFAULT now(), date_ymd TEXT NOT NULL, batch_id TEXT NOT NULL, session_id TEXT NOT NULL, student_id TEXT NOT NULL, reg_no TEXT, name TEXT, subject TEXT, start_t TEXT, end_t TEXT, location TEXT)`;
-await sql`CREATE TABLE IF NOT EXISTS community_posts (
-  id         TEXT PRIMARY KEY,
-  author_id  TEXT NOT NULL,
-  body       TEXT NOT NULL,
-  type       TEXT NOT NULL CHECK (type IN ('anon','announcement')),
-  pinned     BOOLEAN DEFAULT FALSE,
-  created_at TIMESTAMPTZ DEFAULT now(),
-  expires_at TIMESTAMPTZ
-)`;
-  await sql`CREATE TABLE IF NOT EXISTS reset_tokens (
-  id TEXT PRIMARY KEY,
-  user_id TEXT NOT NULL,
-  token TEXT NOT NULL,
-  expires_at TIMESTAMPTZ NOT NULL
-)`;
-// Reset password tokens
-await sql`CREATE TABLE IF NOT EXISTS reset_tokens (
-  id TEXT PRIMARY KEY,
-  user_id TEXT NOT NULL,
-  token TEXT NOT NULL,
-  expires_at TIMESTAMPTZ NOT NULL
-)`;
+// Helpers
+const signSession = (payload) => jwt.sign(payload, JWT_SECRET, { expiresIn: '1h' });
+const verifyJwt = (token) => jwt.verify(token, JWT_SECRET);
+const isWeekend = (date) => [0, 6].includes(new Date(date).getDay());
 
-// Class reminder tracking
-await sql`CREATE TABLE IF NOT EXISTS reminders_sent (
-  id TEXT PRIMARY KEY,
-  batch_id TEXT NOT NULL,
-  slot_id TEXT NOT NULL,
-  date_ymd TEXT NOT NULL,
-  sent_at TIMESTAMPTZ DEFAULT now()
-)`;
+// Auth middleware
+const auth = (req, res, next) => {
+  const token = req.headers.authorization?.replace('Bearer ', '') || req.cookies?.token;
+  if (!token) return res.status(401).json({ error: 'No token' });
+  try {
+    req.user = verifyJwt(token);
+    next();
+  } catch {
+    res.status(401).json({ error: 'Invalid token' });
+  }
+};
 
-await sql`CREATE INDEX IF NOT EXISTS community_created_idx ON community_posts (created_at DESC)`;
-const communityLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 60,
-  standardHeaders: true,
-  legacyHeaders: false
+const admin = (req, res, next) => {
+  if (req.user?.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
+  next();
+};
+
+// Cron: Daily class reminders (10 min before each class)
+cron.schedule('*/10 * * * *', async () => {
+  if (!db) return;
+  const now = dayjs();
+  const today = now.format('YYYY-MM-DD');
+  const wd = now.day();
+  
+  if (wd === 0 || wd === 6) return; // weekend
+  
+  const slots = await collections.schedule_slots.find({ weekday: wd }).toArray();
+  for (const slot of slots) {
+    const [h, m] = slot.start_t.split(':');
+    const slotTime = now.clone().hour(parseInt(h)).minute(parseInt(m));
+    const minUntilStart = slotTime.diff(now, 'minute');
+    
+    if (minUntilStart > 5 && minUntilStart < 15) {
+      const existing = await collections.reminders_sent.findOne({ 
+        batch_id: slot.batch_id, 
+        slot_id: slot._id.toString(),
+        date_ymd: today 
+      });
+      if (existing) continue;
+      
+      const students = await collections.users.find({ 
+        role: 'student', 
+        batch_id: slot.batch_id 
+      }).toArray();
+      
+      for (const s of students) {
+        sendMail(
+          s.email,
+          `🔔 Class starting soon: ${slot.subject}`,
+          `${slot.subject} starts at ${slot.start_t} in ${slot.location}`,
+          `<p><b>${slot.subject}</b> starts at <b>${slot.start_t}</b> in <b>${slot.location}</b></p>`
+        );
+      }
+      
+      await collections.reminders_sent.insertOne({
+        batch_id: slot.batch_id,
+        slot_id: slot._id.toString(),
+        date_ymd: today,
+        sent_at: new Date()
+      });
+    }
+  }
 });
+
+const commonErrorMessage = 'Database not configured. Please set MONGODB_URI in .env file.';
+
+// ===== API Routes =====
+
+// Health check
+app.get('/api/health', (_req, res) => res.json({ ok: true, now: new Date().toISOString() }));
+
+// Auth Routes
+app.post('/api/auth/register', async (req, res) => {
+  if (!db) return res.status(503).json({ error: commonErrorMessage });
+  
+  try {
+    let { name, email, password, regNo, batchNumber } = req.body || {};
+    name = (name || '').trim();
+    regNo = (regNo || '').trim();
+    const normEmail = (email || '').trim().toLowerCase();
+    
+    if (!name || !normEmail || !password || !regNo || !batchNumber) 
+      return res.status(400).json({ error: 'Missing fields' });
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normEmail)) 
+      return res.status(400).json({ error: 'Invalid email' });
+    if (String(password).length < 8) 
+      return res.status(400).json({ error: 'Password too short (min 8)' });
+    
+    const userCount = await collections.users.countDocuments();
+    const finalRole = userCount === 0 ? 'admin' : 'student';
+    
+    const exists = await collections.users.findOne({ email: normEmail });
+    if (exists) return res.status(400).json({ error: 'Email already exists' });
+    
+    // Ensure batch exists
+    let batch = await collections.batches.findOne({ number: String(batchNumber) });
+    if (!batch) {
+      batch = {
+        _id: new ObjectId(),
+        number: String(batchNumber),
+        name: `Batch ${batchNumber}`
+      };
+      await collections.batches.insertOne(batch);
+    }
+    
+    const hash = await bcryptjs.hash(password, 10);
+    const userId = new ObjectId();
+    
+    await collections.users.insertOne({
+      _id: userId,
+      name,
+      email: normEmail,
+      password: hash,
+      role: finalRole,
+      reg_no: regNo,
+      batch_id: batch._id.toString()
+    });
+    
+    const token = jwt.sign({ id: userId.toString(), name, email: normEmail, role: finalRole, batch_id: batch._id.toString() }, JWT_SECRET, { expiresIn: '7d' });
+    
+    res.json({ user: { id: userId.toString(), name, email: normEmail, role: finalRole }, token });
+  } catch (err) {
+    console.error('Register error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/auth/login', async (req, res) => {
+  if (!db) return res.status(503).json({ error: commonErrorMessage });
+  
+  try {
+    const { email, password } = req.body || {};
+    const normEmail = (email || '').trim().toLowerCase();
+    
+    const user = await collections.users.findOne({ email: normEmail });
+    if (!user) return res.status(400).json({ error: 'User not found' });
+    
+    const match = await bcryptjs.compare(password, user.password);
+    if (!match) return res.status(400).json({ error: 'Wrong password' });
+    
+    const token = jwt.sign(
+      { id: user._id.toString(), name: user.name, email: user.email, role: user.role, batch_id: user.batch_id },
+      JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+    
+    res.json({
+      user: { id: user._id.toString(), name: user.name, email: user.email, role: user.role, batch_id: user.batch_id },
+      token
+    });
+  } catch (err) {
+    console.error('Login error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/auth/me', auth, (req, res) => res.json({ user: req.user }));
+
+// Batches
+app.get('/api/batches', auth, async (_req, res) => {
+  if (!db) return res.status(503).json({ error: commonErrorMessage });
+  
+  let batches = await collections.batches.find({}).toArray();
+  
+  if (batches.length === 0) {
+    const years = [2024, 2025, 2026];
+    for (const y of years) {
+      const existing = await collections.batches.findOne({ number: String(y) });
+      if (!existing) {
+        await collections.batches.insertOne({
+          _id: new ObjectId(),
+          number: String(y),
+          name: `Batch ${y}`
+        });
+      }
+    }
+    batches = await collections.batches.find({}).toArray();
+  }
+  
+  res.json({ batches: batches.map(b => ({ id: b._id.toString(), ...b })) });
+});
+
+app.post('/api/batches', auth, admin, async (req, res) => {
+  if (!db) return res.status(503).json({ error: commonErrorMessage });
+  
+  const { number, name } = req.body || {};
+  const year = parseInt(number, 10);
+  if (!Number.isInteger(year) || year < 2024 || year > 2100) 
+    return res.status(400).json({ error: 'Batch number must be a year ≥ 2024' });
+  
+  let batch = await collections.batches.findOne({ number: String(number) });
+  if (!batch) {
+    const result = await collections.batches.insertOne({
+      _id: new ObjectId(),
+      number: String(number),
+      name: name || `Batch ${number}`
+    });
+    batch = { _id: result.insertedId, number: String(number), name: name || `Batch ${number}` };
+  } else if (name && name !== batch.name) {
+    await collections.batches.updateOne({ _id: batch._id }, { $set: { name } });
+    batch.name = name;
+  }
+  
+  // Seed 2024 timetable if empty
+  if (number === 2024) {
+    const hasSlots = await collections.schedule_slots.findOne({ batch_id: batch._id.toString() });
+    if (!hasSlots) {
+      const timetable = [
+        { weekday: 1, subject: 'OS (Lab)', start_t: '08:30', end_t: '10:30', location: 'Lab 2' },
+        { weekday: 1, subject: 'ISE (Lab)', start_t: '10:30', end_t: '12:00', location: 'Lab 2' },
+        { weekday: 2, subject: 'DSA (Lab)', start_t: '08:30', end_t: '10:30', location: 'Lab 2' },
+        { weekday: 2, subject: 'OS-L (Lab)', start_t: '12:00', end_t: '15:00', location: 'Lab 2' },
+        { weekday: 3, subject: 'DSA (Lab)', start_t: '08:30', end_t: '10:30', location: 'Lab 2' },
+        { weekday: 4, subject: 'Quranic Translation', start_t: '08:00', end_t: '11:00', location: 'Block A' },
+        { weekday: 4, subject: 'DSA-L (Lab)', start_t: '12:00', end_t: '13:30', location: 'Lab 2' }
+      ];
+      
+      for (const slot of timetable) {
+        await collections.schedule_slots.insertOne({
+          _id: new ObjectId(),
+          batch_id: batch._id.toString(),
+          weekday: slot.weekday,
+          subject: slot.subject,
+          start_t: slot.start_t,
+          end_t: slot.end_t,
+          location: slot.location
+        });
+      }
+    }
+  }
+  
+  res.json({ batch: { id: batch._id.toString(), ...batch } });
+});
+
+// Schedule
+app.get('/api/schedule/today', auth, async (req, res) => {
+  if (!db) return res.status(503).json({ error: commonErrorMessage });
+  
+  const { batchId } = req.query;
+  const userBatchId = req.user.batch_id;
+  const id = batchId || userBatchId;
+  
+  const now = dayjs().toDate();
+  const weekday = now.getDay(); // 0-6
+  
+  if (weekday === 0 || weekday === 6)
+    return res.json({ weekday, classes: [] });
+  
+  const classes = await collections.schedule_slots
+    .find({ batch_id: id, weekday })
+    .sort({ start_t: 1 })
+    .toArray();
+  
+  res.json({ weekday, classes: classes.map(c => ({ id: c._id.toString(), ...c })) });
+});
+
+app.put('/api/batches/:id/schedule', auth, admin, async (req, res) => {
+  if (!db) return res.status(503).json({ error: commonErrorMessage });
+  
+  const { id } = req.params;
+  const sc = req.body?.schedule || {};
+  
+  await collections.schedule_slots.deleteMany({ batch_id: id });
+  
+  const days = ['mon', 'tue', 'wed', 'thu', 'fri'];
+  for (let i = 0; i < days.length; i++) {
+    for (const s of (sc[days[i]] || [])) {
+      await collections.schedule_slots.insertOne({
+        _id: new ObjectId(),
+        batch_id: id,
+        weekday: i + 1,
+        subject: s.subject || '',
+        start_t: s.start || '',
+        end_t: s.end || '',
+        location: s.location || ''
+      });
+    }
+  }
+  
+  res.json({ ok: true });
+});
+
+app.get('/api/batches/:id/schedule', auth, admin, async (req, res) => {
+  if (!db) return res.status(503).json({ error: commonErrorMessage });
+  
+  const { id } = req.params;
+  const rows = await collections.schedule_slots
+    .find({ batch_id: id })
+    .sort({ weekday: 1, start_t: 1 })
+    .toArray();
+  
+  const days = { mon: [], tue: [], wed: [], thu: [], fri: [] };
+  rows.forEach(r => {
+    const key = ['', 'mon', 'tue', 'wed', 'thu', 'fri'][r.weekday];
+    if (key) days[key].push(r);
+  });
+  
+  res.json({ schedule: days });
+});
+
+// QR & Attendance
+app.post('/api/sessions/:batchId/generate', auth, admin, async (req, res) => {
+  if (!db) return res.status(503).json({ error: commonErrorMessage });
+  
+  const { batchId } = req.params;
+  const { dateYMD, slotId } = req.body || {};
+  if (!dateYMD || !slotId) return res.status(400).json({ error: 'dateYMD and slotId required' });
+  
+  const slot = await collections.schedule_slots.findOne({ _id: new ObjectId(slotId), batch_id: batchId });
+  if (!slot) return res.status(404).json({ error: 'Slot not found' });
+  
+  const sessionId = uuid();
+  const token = signSession({ sessionId, batchId, dateYMD, slot });
+  const url = `${CLIENT_URL}/scan?token=${encodeURIComponent(token)}`;
+  const qrDataUrl = await QRCode.toDataURL(url, { margin: 1, width: 360 });
+  
+  res.json({ url, qrDataUrl, session: { sessionId, dateYMD, batchId, slot } });
+});
+
+app.post('/api/attendance/mark', auth, async (req, res) => {
+  if (!db) return res.status(503).json({ error: commonErrorMessage });
+  
+  const { token } = req.body || {};
+  if (!token) return res.status(400).json({ error: 'Missing token' });
+  
+  let payload;
+  try {
+    payload = verifyJwt(token);
+  } catch {
+    return res.status(400).json({ error: 'Invalid/expired session' });
+  }
+  
+  if (req.user.batch_id !== payload.batchId) return res.status(403).json({ error: 'Wrong batch' });
+  
+  const dateObj = dayjs(payload.dateYMD).toDate();
+  if (isWeekend(dateObj)) return res.status(400).json({ error: 'Weekend is off' });
+  
+  const user = await collections.users.findOne({ _id: new ObjectId(req.user.id) });
+  
+  await collections.attendance.insertOne({
+    _id: new ObjectId(),
+    date_ymd: payload.dateYMD,
+    batch_id: payload.batchId,
+    session_id: payload.sessionId,
+    student_id: user._id.toString(),
+    reg_no: user.reg_no,
+    name: user.name,
+    subject: payload.slot.subject,
+    start_t: payload.slot.start_t || payload.slot.start,
+    end_t: payload.slot.end_t || payload.slot.end,
+    location: payload.slot.location,
+    ts: new Date()
+  });
+  
+  // Also save to CSV for backup
+  const dir = path.join(dataDir, payload.dateYMD);
+  fs.mkdirSync(dir, { recursive: true });
+  const csvPath = path.join(dir, `${payload.batchId}.csv`);
+  if (!fs.existsSync(csvPath)) 
+    fs.writeFileSync(csvPath, 'timestamp,batchId,sessionId,studentRegNo,studentName,subject,start,end,location\n');
+  const line = [new Date().toISOString(), payload.batchId, payload.sessionId, (user.reg_no || '').replace(/,/g, ' '), (user.name || '').replace(/,/g, ' '), (payload.slot.subject || '').replace(/,/g, ' '), payload.slot.start_t || payload.slot.start, payload.slot.end_t || payload.slot.end, (payload.slot.location || '').replace(/,/g, ' ')].join(',');
+  fs.appendFileSync(csvPath, line + '\n');
+  
+  res.json({ ok: true, savedTo: csvPath });
+});
+
+app.get('/api/attendance/export', auth, admin, async (req, res) => {
+  if (!db) return res.status(503).json({ error: commonErrorMessage });
+  
+  const { dateYMD, batchId } = req.query || {};
+  if (!dateYMD || !batchId) return res.status(400).json({ error: 'dateYMD & batchId required' });
+  
+  const records = await collections.attendance
+    .find({ date_ymd: dateYMD, batch_id: batchId })
+    .toArray();
+  
+  if (records.length === 0) return res.status(404).json({ error: 'No attendance records' });
+  
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet(`Attendance ${dateYMD}`);
+  ws.columns = [
+    { header: 'Timestamp', key: 'ts', width: 24 },
+    { header: 'Batch', key: 'batch_id', width: 10 },
+    { header: 'Reg No', key: 'reg_no', width: 14 },
+    { header: 'Name', key: 'name', width: 22 },
+    { header: 'Subject', key: 'subject', width: 20 },
+    { header: 'Start', key: 'start_t', width: 10 },
+    { header: 'End', key: 'end_t', width: 10 },
+    { header: 'Location', key: 'location', width: 18 }
+  ];
+  
+  records.forEach(r => {
+    ws.addRow({
+      ts: r.ts,
+      batch_id: r.batch_id,
+      reg_no: r.reg_no,
+      name: r.name,
+      subject: r.subject,
+      start_t: r.start_t,
+      end_t: r.end_t,
+      location: r.location
+    });
+  });
+  
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  res.setHeader('Content-Disposition', `attachment; filename="attendance_${dateYMD}.xlsx"`);
+  await wb.xlsx.write(res);
+  res.end();
+});
+
+// Users
+app.get('/api/users', auth, admin, async (_req, res) => {
+  if (!db) return res.status(503).json({ error: commonErrorMessage });
+  
+  const users = await collections.users
+    .find({}, { projection: { password: 0 } })
+    .sort({ name: 1 })
+    .toArray();
+  
+  res.json({ users: users.map(u => ({ id: u._id.toString(), ...u })) });
+});
+
+app.put('/api/users/:id', auth, admin, async (req, res) => {
+  if (!db) return res.status(503).json({ error: commonErrorMessage });
+  
+  const { id } = req.params;
+  const { regNo, batchId, name } = req.body || {};
+  
+  await collections.users.updateOne(
+    { _id: new ObjectId(id) },
+    { $set: { reg_no: regNo, batch_id: batchId, name } }
+  );
+  
+  const user = await collections.users.findOne({ _id: new ObjectId(id) }, { projection: { password: 0 } });
+  res.json({ user: { id: user._id.toString(), ...user } });
+});
+
+// Community
+const communityLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 60, standardHeaders: true, legacyHeaders: false });
 app.use('/api/community', communityLimiter);
 
 app.get('/api/community', auth, async (req, res) => {
-  // Purge expired anon posts (separate statement because Neon forbids multi-cmd)
-  await sql`DELETE FROM community_posts WHERE type='anon' AND expires_at IS NOT NULL AND expires_at < now()`;
-
-  const rows = await sql`
-    SELECT c.*, u.name AS author_name, u.email AS author_email
-    FROM community_posts c
-    JOIN users u ON u.id = c.author_id
-    WHERE (c.type='announcement' OR c.expires_at IS NULL OR c.expires_at > now())
-    ORDER BY c.pinned DESC, c.created_at DESC
-    LIMIT 200
-  `;
-
-  const adminView = req.user?.role === 'admin';
-  const posts = rows.map(r => ({
-    id: r.id,
-    body: r.body,
-    type: r.type,
-    pinned: r.pinned,
-    createdAt: r.created_at,
-    expiresAt: r.expires_at,
-    author: adminView ? { id: r.author_id, name: r.author_name, email: r.author_email }
-                      : { name: 'Anonymous' }
-  }));
-  res.json({ posts });
-});
-
-app.post('/api/notify/schedule', auth, admin, async (req, res) => {
-  const { dateYMD } = req.body || {};
-  const d = dayjs(dateYMD || new Date());
-  const wd = d.day();
-  if (wd === 0 || wd === 6) return res.json({ ok: false, msg: 'Weekend - no classes' });
-
-  // Get all batches + their users
-  const batches = await sql`SELECT * FROM batches`;
-  for (const b of batches) {
-    const classes = await sql`
-      SELECT * FROM schedule_slots
-      WHERE batch_id=${b.id} AND weekday=${wd}
-      ORDER BY start_t
-    `;
-    if (classes.length === 0) continue;
-
-    const students = await sql`SELECT * FROM users WHERE role='student' AND batch_id=${b.id}`;
-    const bodyText = classes.map(
-      (c) => `📘 ${c.subject} ${c.start_t}–${c.end_t} @ ${c.location}`
-    ).join("\n");
-
-    const bodyHtml = `<h3>Today’s Classes</h3><ul>` +
-      classes.map((c) => `<li><b>${c.subject}</b> ${c.start_t}–${c.end_t} @ ${c.location}</li>`).join("") +
-      `</ul>`;
-
-    for (const s of students) {
-      sendMail(
-        s.email,
-        `📅 Your classes for ${d.format("YYYY-MM-DD")}`,
-        bodyText,
-        bodyHtml
-      );
-    }
+  if (!db) return res.status(503).json({ error: commonErrorMessage });
+  
+  try {
+    // Purge expired posts
+    await collections.community_posts.deleteMany({ type: 'anon', expires_at: { $lt: new Date() } });
+    
+    const rows = await collections.community_posts
+      .find({ $or: [{ type: 'announcement' }, { expires_at: { $gt: new Date() } }] })
+      .sort({ pinned: -1, created_at: -1 })
+      .limit(200)
+      .toArray();
+    
+    const adminView = req.user?.role === 'admin';
+    const posts = rows.map(r => ({
+      id: r._id.toString(),
+      body: r.body,
+      type: r.type,
+      pinned: r.pinned,
+      createdAt: r.created_at,
+      expiresAt: r.expires_at,
+      author: adminView ? { id: r.author_id, name: r.author_name } : { name: 'Anonymous' }
+    }));
+    
+    res.json({ posts });
+  } catch (err) {
+    console.error('Community fetch error:', err);
+    res.status(500).json({ error: 'Failed to fetch posts' });
   }
-
-  res.json({ ok: true, msg: 'Emails sent (queued)' });
 });
-
 
 app.post('/api/community', auth, async (req, res) => {
+  if (!db) return res.status(503).json({ error: commonErrorMessage });
+  
   let { body, type } = req.body || {};
   body = String(body || '').trim();
+  
   if (!body) return res.status(400).json({ error: 'Empty post' });
   if (body.length > 2000) return res.status(400).json({ error: 'Too long (max 2000 chars)' });
-
+  
   const userIsAdmin = req.user?.role === 'admin';
-  // Only admins can create announcements; everyone else forced to anon
   const finalType = userIsAdmin && type === 'announcement' ? 'announcement' : 'anon';
-  const expiresAt = finalType === 'anon' ? dayjs().add(24, 'hour').toISOString() : null;
-
-  const id = uuid();
-  await sql`
-    INSERT INTO community_posts (id, author_id, body, type, pinned, expires_at)
-    VALUES (${id}, ${req.user.id}, ${body}, ${finalType}, ${finalType === 'announcement'}, ${expiresAt})
-  `;
-
-await sql`CREATE TABLE IF NOT EXISTS reminders_sent (
-  id TEXT PRIMARY KEY,
-  batch_id TEXT NOT NULL,
-  slot_id TEXT NOT NULL,
-  date_ymd TEXT NOT NULL,
-  sent_at TIMESTAMPTZ DEFAULT now()
-)`;
-
-
+  const expiresAt = finalType === 'anon' ? dayjs().add(24, 'hour').toDate() : null;
+  
+  const id = new ObjectId();
+  await collections.community_posts.insertOne({
+    _id: id,
+    author_id: req.user.id,
+    body,
+    type: finalType,
+    pinned: finalType === 'announcement',
+    expires_at: expiresAt,
+    created_at: new Date()
+  });
+  
   res.json({
     post: {
-      id,
+      id: id.toString(),
       body,
       type: finalType,
       pinned: finalType === 'announcement',
@@ -273,434 +609,66 @@ await sql`CREATE TABLE IF NOT EXISTS reminders_sent (
     }
   });
 });
+
 app.delete('/api/community/:id', auth, admin, async (req, res) => {
-  await sql`DELETE FROM community_posts WHERE id=${req.params.id}`;
+  if (!db) return res.status(503).json({ error: commonErrorMessage });
+  
+  await collections.community_posts.deleteOne({ _id: new ObjectId(req.params.id) });
   res.json({ ok: true });
 });
 
-
-
-// --- Auth rate limit ---
-app.use('/api/auth/', rateLimit({ windowMs: 15*60*1000, max: 100, standardHeaders: true, legacyHeaders: false }));
-
-// --- helpers: ensure batch + seed 2024 timetable once ---
-async function ensureBatch(yearStr) {
-  if (!yearStr) return null;
-  const year = parseInt(yearStr, 10);
-  if (!Number.isInteger(year) || year < 2024 || year > 2100) return null;
-
-  const existing = await sql`SELECT * FROM batches WHERE number=${String(year)}`;
-  if (existing.length) return existing[0];
-
-  const id = uuid();
-  await sql`INSERT INTO batches (id,number,name) VALUES (${id},${String(year)},${'Batch '+year})`;
-  return { id, number:String(year), name:'Batch '+year };
-}
-
-async function seed2024IfEmpty(batch) {
-  if (!batch || batch.number !== '2024') return;
-  const rows = await sql`SELECT 1 FROM schedule_slots WHERE batch_id=${batch.id} LIMIT 1`;
-  if (rows.length) return;
-
-  // UET SE 3rd semester (from your image) — Mon..Thu, Fri off, prayer break at 13:00-13:30
-  const S = [];
-  const push = (wd, subject, start, end, location) => S.push({ id: uuid(), batch_id: batch.id, weekday: wd, subject, start_t: start, end_t: end, location });
-
-  // Monday
-  push(1,'OS (Lab)', '08:30','10:30','Lab 2');
-  push(1,'ISE (Lab)','10:30','12:00','Lab 2');
-  push(1,'CVT (CR1)','12:00','13:00','CR 1');
-  push(1,'CVT (CR1) — Continue','13:30','15:00','CR 1');
-
-  // Tuesday
-  push(2,'DSA (Lab)','08:30','10:30','Lab 2');
-  push(2,'ISE (Lab)','10:30','12:00','Lab 2');
-  push(2,'OS-L (Lab)','12:00','13:30','Lab 2');
-  push(2,'OS-L (Lab) — Continue','13:30','15:00','Lab 2');
-
-  // Wednesday
-  push(3,'DSA (Lab)','08:30','10:30','Lab 2');
-  push(3,'OS (Lab)','10:30','12:00','Lab 2');
-  push(3,'PS (CR1)','12:00','13:30','CR 1');
-  push(3,'PS (CR1) — Continue','13:30','15:00','CR 1');
-
-  // Thursday
-  push(4,'Quranic Translation','08:00','11:00','Block A');
-  push(4,'DSA-L (Lab)','12:00','13:30','Lab 2');
-  push(4,'DSA-L (Lab) — Continue','13:30','15:00','Lab 2');
-
-  for (const r of S) {
-    await sql`INSERT INTO schedule_slots (id,batch_id,weekday,subject,start_t,end_t,location)
-              VALUES (${r.id},${r.batch_id},${r.weekday},${r.subject},${r.start_t},${r.end_t},${r.location})`;
-  }
-  console.log('Seeded 2024 timetable for batch', batch.id);
-}
-
-// --- AUTH ---
-app.post('/api/auth/register', async (req,res)=>{
-  try{
-    let { name, email, password, regNo, batchNumber } = req.body || {};
-    name=(name||'').trim(); regNo=(regNo||'').trim();
-    const normEmail=(email||'').trim().toLowerCase();
-
-    if(!name||!normEmail||!password||!regNo||!batchNumber) return res.status(400).json({error:'Missing fields'});
-    if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normEmail)) return res.status(400).json({error:'Invalid email'});
-    if(String(password).length<8) return res.status(400).json({error:'Password too short (min 8)'});
-
-    // first user is admin, others student
-    const [{count}] = await sql`SELECT COUNT(*)::int FROM users`;
-    const finalRole = count===0 ? 'admin' : 'student';
-
-    const exists = await sql`SELECT 1 FROM users WHERE email=${normEmail} LIMIT 1`;
-    if (exists.length) return res.status(400).json({ error:'Email already exists' });
-
-    // ensure batch exists by year; create if needed (validates ≥2024)
-    const batch = await ensureBatch(String(batchNumber));
-    if (!batch) return res.status(400).json({ error:'Invalid batch year (>= 2024)' });
-
-    // seed timetable for 2024 (first time only)
-    await seed2024IfEmpty(batch);
-
-    const id = uuid();
-    const hash = bcrypt.hashSync(password,10);
-    await sql`INSERT INTO users (id,name,email,password,role,reg_no,batch_id)
-              VALUES (${id},${name},${normEmail},${hash},${finalRole},${regNo},${batch.id})`;
-
-    const token = signUser({ id, role:finalRole, name, reg_no:regNo, batch_id:batch.id });
-    res.json({ token, user:{ id, name, email:normEmail, role:finalRole, batchId:batch.id, regNo } });
-  }catch(err){
-    if (err?.code==='23505') return res.status(400).json({error:'Email already exists'});
-    console.error('REGISTER ERROR', err);
-    res.status(500).json({error:'Server error'});
-  }
-});
-
-app.post('/api/auth/login', async (req,res)=>{
-  try{
-    const { email, password } = req.body || {};
-    const normEmail=(email||'').trim().toLowerCase();
-    if(!normEmail||!password) return res.status(400).json({error:'Missing email or password'});
-
-    const rows = await sql`SELECT * FROM users WHERE email=${normEmail} LIMIT 1`;
-    const u = rows[0];
-    const hash = u?.password;
-    const looksLikeBcrypt = typeof hash==='string' && /^\$2[aby]\$/.test(hash) && hash.length>=50;
-    const ok = looksLikeBcrypt ? bcrypt.compareSync(password, hash) : false;
-    if (!ok) return res.status(401).json({ error:'Invalid credentials' });
-
-    const token = signUser(u);
-    res.json({ token, user:{ id:u.id, name:u.name, email:u.email, role:u.role, batchId:u.batch_id, regNo:u.reg_no } });
-  }catch(err){
-    console.error('LOGIN ERROR',err);
-    res.status(500).json({error:'Server error'});
-  }
-});
-
-app.get('/api/auth/me', auth, (req,res)=>res.json({ user:req.user }));
-
-// --- BATCHES & USERS ---
-// --- BATCHES & USERS ---
-app.get('/api/batches', auth, async (_req, res) => {
-  // fetch existing
-  let batches = await sql`SELECT * FROM batches ORDER BY number`;
-  if (batches.length === 0) {
-    // create defaults
-    const years = [2024, 2025, 2026];
-    for (const y of years) {
-      const b = await ensureBatch(String(y));      // creates if missing & validates year ≥ 2024
-      await seed2024IfEmpty(b);                    // only seeds timetable for 2024 and only once
-    }
-    batches = await sql`SELECT * FROM batches ORDER BY number`;
-    console.log('Seeded default batches:', batches.map(b => b.number).join(', '));
-  }
-  res.json({ batches });
-});
-
+// Password reset
 app.post('/api/auth/request-reset', async (req, res) => {
+  if (!db) return res.status(503).json({ error: commonErrorMessage });
+  
   const { email } = req.body || {};
   const normEmail = (email || '').trim().toLowerCase();
-  const [u] = await sql`SELECT * FROM users WHERE email=${normEmail} LIMIT 1`;
-  if (!u) return res.status(200).json({ ok: true }); // don't reveal existence
-
+  
+  const user = await collections.users.findOne({ email: normEmail });
+  if (!user) return res.status(200).json({ ok: true }); // don't reveal existence
+  
   const token = uuid();
-  const exp = dayjs().add(1, 'hour').toISOString();
-  await sql`INSERT INTO reset_tokens (id,user_id,token,expires_at)
-            VALUES (${uuid()},${u.id},${token},${exp})`;
-
+  const exp = dayjs().add(1, 'hour').toDate();
+  
+  await collections.reset_tokens.insertOne({
+    _id: new ObjectId(),
+    user_id: user._id.toString(),
+    token,
+    expires_at: exp
+  });
+  
   const link = `${CLIENT_URL}/reset-password?token=${token}`;
   await sendMail(
-    u.email,
+    user.email,
     "🔑 Reset your password",
     `Click the link to reset your password: ${link}`,
     `<p>Click below to reset your password:</p><p><a href="${link}">${link}</a></p>`
   );
-
+  
   res.json({ ok: true });
 });
+
 app.post('/api/auth/reset-password', async (req, res) => {
+  if (!db) return res.status(503).json({ error: commonErrorMessage });
+  
   const { token, password } = req.body || {};
-  if (!token || !password) return res.status(400).json({ error: 'Missing fields' });
-  if (String(password).length < 8) return res.status(400).json({ error: 'Password too short' });
-
-  const rows = await sql`SELECT * FROM reset_tokens WHERE token=${token} AND expires_at > now() LIMIT 1`;
-  const r = rows[0];
-  if (!r) return res.status(400).json({ error: 'Invalid/expired token' });
-
-  const hash = bcrypt.hashSync(password, 10);
-  await sql`UPDATE users SET password=${hash} WHERE id=${r.user_id}`;
-  await sql`DELETE FROM reset_tokens WHERE token=${token}`;
-
+  
+  const record = await collections.reset_tokens.findOne({ token, expires_at: { $gt: new Date() } });
+  if (!record) return res.status(400).json({ error: 'Invalid/expired token' });
+  
+  const hash = await bcryptjs.hash(password, 10);
+  await collections.users.updateOne({ _id: new ObjectId(record.user_id) }, { $set: { password: hash } });
+  await collections.reset_tokens.deleteOne({ token });
+  
   res.json({ ok: true, msg: 'Password updated' });
 });
 
-app.post('/api/batches', auth, admin, async (req,res)=>{
-  const { number, name } = req.body || {};
-  const batch = await ensureBatch(String(number));
-  if (!batch) return res.status(400).json({error:'Batch number must be a year ≥ 2024'});
-  if (name && name!==batch.name) await sql`UPDATE batches SET name=${name} WHERE id=${batch.id}`;
-  // seed if 2024 and empty
-  await seed2024IfEmpty(batch);
-  const [b] = await sql`SELECT * FROM batches WHERE id=${batch.id}`;
-  res.json({ batch: b });
-});
-
-app.get('/api/users', auth, admin, async (_req,res)=>{
-  const users = await sql`SELECT id,name,email,role,reg_no,batch_id FROM users ORDER BY name`;
-  res.json({ users });
-});
-
-app.put('/api/users/:id', auth, admin, async (req,res)=>{
-  const { id } = req.params;
-  const { regNo, batchId, name } = req.body || {};
-  await sql`UPDATE users SET reg_no=${regNo}, batch_id=${batchId}, name=${name} WHERE id=${id}`;
-  const [u] = await sql`SELECT id,name,email,role,reg_no,batch_id FROM users WHERE id=${id}`;
-  res.json({ user:u });
-});
-
-// --- SCHEDULE ---
-app.put('/api/batches/:id/schedule', auth, admin, async (req,res)=>{
-  const { id } = req.params;
-  const sc = req.body?.schedule || {};
-  await sql`DELETE FROM schedule_slots WHERE batch_id=${id}`;
-  const days = ['mon','tue','wed','thu','fri'];
-  for (let i=0;i<days.length;i++){
-    for (const s of (sc[days[i]]||[])){
-      await sql`INSERT INTO schedule_slots (id,batch_id,weekday,subject,start_t,end_t,location)
-                VALUES (${s.id||uuid()},${id},${i+1},${s.subject||''},${s.start||''},${s.end||''},${s.location||''})`;
-    }
-  }
-  res.json({ ok:true });
-});
-
-app.get('/api/schedule/today', auth, async (req, res) => {
-  const { batchId } = req.query;
-  const userBatchId = req.user.batch_id;
-  const id = batchId || userBatchId;
-  if (!id) return res.status(400).json({ error: 'Batch required' });
-
-  const today = dayjs().day(); // 0 = Sun
-  if (today === 0 || today === 6)
-    return res.json({ weekday: today, classes: [] });
-
-  const rows = await sql`
-    SELECT * FROM schedule_slots
-    WHERE batch_id=${id} AND weekday=${today}
-    ORDER BY start_t
-  `;
-  res.json({ weekday: today, classes: rows });
-});
-
-
-// --- QR & Attendance ---
-app.post('/api/sessions/:batchId/generate', auth, admin, async (req,res)=>{
-  const { batchId } = req.params;
-  const { dateYMD, slotId } = req.body || {};
-  if (!dateYMD||!slotId) return res.status(400).json({error:'dateYMD and slotId required'});
-  const [slot] = await sql`SELECT * FROM schedule_slots WHERE id=${slotId} AND batch_id=${batchId} LIMIT 1`;
-  if (!slot) return res.status(404).json({error:'Slot not found'});
-  const sessionId = uuid();
-  const token = signSession({ sessionId, batchId, dateYMD, slot });
-  const url = `${CLIENT_URL}/scan?token=${encodeURIComponent(token)}`;
-  const qrDataUrl = await QRCode.toDataURL(url, { margin:1, width:360 });
-  res.json({ url, qrDataUrl, session:{ sessionId, dateYMD, batchId, slot } });
-});
-
-app.post('/api/attendance/mark', auth, async (req,res)=>{
-  const { token } = req.body || {};
-  if (!token) return res.status(400).json({error:'Missing token'});
-  let payload; try{ payload = jwt.verify(token, JWT_SECRET); }catch{ return res.status(400).json({error:'Invalid/expired session'}); }
-  if (req.user.batchId !== payload.batchId) return res.status(403).json({error:'Wrong batch'});
-  const dateObj = dayjs(payload.dateYMD).toDate(); if (isWeekend(dateObj)) return res.status(400).json({error:'Weekend is off'});
-  const [u] = await sql`SELECT * FROM users WHERE id=${req.user.id}`;
-  await sql`INSERT INTO attendance (date_ymd,batch_id,session_id,student_id,reg_no,name,subject,start_t,end_t,location)
-            VALUES (${payload.dateYMD},${payload.batchId},${payload.sessionId},${u.id},${u.reg_no},${u.name},${payload.slot.subject},${payload.slot.start_t||payload.slot.start},${payload.slot.end_t||payload.slot.end},${payload.slot.location})`;
-  const dir = path.join(dataDir, payload.dateYMD);
-  fs.mkdirSync(dir,{recursive:true});
-  const csvPath = path.join(dir, `${payload.batchId}.csv`);
-  if (!fs.existsSync(csvPath)) fs.writeFileSync(csvPath,'timestamp,batchId,sessionId,studentRegNo,studentName,subject,start,end,location\n');
-  const line = [new Date().toISOString(), payload.batchId, payload.sessionId, (u.reg_no||'').replace(/,/g,' '), (u.name||'').replace(/,/g,' '), (payload.slot.subject||'').replace(/,/g,' '), payload.slot.start_t||payload.slot.start, payload.slot.end_t||payload.slot.end, (payload.slot.location||'').replace(/,/g,' ')].join(',');
-  fs.appendFileSync(csvPath, line+'\n');
-  res.json({ ok:true, savedTo: csvPath });
-});
-
-app.get('/api/attendance/export', auth, admin, async (req,res)=>{
-  const { dateYMD, batchId } = req.query || {};
-  if (!dateYMD||!batchId) return res.status(400).json({error:'dateYMD & batchId required'});
-  const csvPath = path.join(dataDir, dateYMD, `${batchId}.csv`);
-  if (!fs.existsSync(csvPath)) return res.status(404).json({error:'No attendance file'});
-  const wb = new ExcelJS.Workbook(); const ws = wb.addWorksheet(`Attendance ${dateYMD}`);
-  ws.columns = [
-    { header:'Timestamp', key:'timestamp', width:24 },
-    { header:'Batch', key:'batch', width:10 },
-    { header:'Session ID', key:'sessionId', width:36 },
-    { header:'Reg No', key:'regNo', width:14 },
-    { header:'Name', key:'name', width:22 },
-    { header:'Subject', key:'subject', width:20 },
-    { header:'Start', key:'start', width:10 },
-    { header:'End', key:'end', width:10 },
-    { header:'Location', key:'location', width:18 }
-  ];
-  const rows = fs.readFileSync(csvPath,'utf8').trim().split(/\r?\n/).slice(1);
-  rows.forEach(r=>{ const [timestamp,batch,sessionId,regNo,name,subject,start,end,location]=r.split(','); ws.addRow({timestamp,batch,sessionId,regNo,name,subject,start,end,location}); });
-  res.setHeader('Content-Type','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-  res.setHeader('Content-Disposition',`attachment; filename="attendance_${dateYMD}_${batchId}.xlsx"`);
-  await wb.xlsx.write(res); res.end();
-});
-
-// Admin: Export ALL attendance grouped by date (multi-sheet Excel)
-app.get('/api/attendance/all-export', auth, admin, async (_req, res) => {
-  try {
-    // Fetch all unique dates
-    const dates = await sql`SELECT DISTINCT date_ymd FROM attendance ORDER BY date_ymd`;
-
-    if (dates.length === 0) {
-      return res.status(404).json({ error: 'No attendance records yet' });
-    }
-
-    const wb = new ExcelJS.Workbook();
-
-    for (const d of dates) {
-      const rows = await sql`
-        SELECT *
-        FROM attendance
-        WHERE date_ymd=${d.date_ymd}
-        ORDER BY batch_id, start_t
-      `;
-
-      const ws = wb.addWorksheet(`${d.date_ymd}`);
-      ws.columns = [
-        { header: 'Timestamp', key: 'ts', width: 24 },
-        { header: 'Date', key: 'date', width: 12 },
-        { header: 'Batch ID', key: 'batch_id', width: 14 },
-        { header: 'Session ID', key: 'session_id', width: 36 },
-        { header: 'Reg No', key: 'reg_no', width: 14 },
-        { header: 'Name', key: 'name', width: 22 },
-        { header: 'Subject', key: 'subject', width: 20 },
-        { header: 'Start', key: 'start_t', width: 10 },
-        { header: 'End', key: 'end_t', width: 10 },
-        { header: 'Location', key: 'location', width: 18 },
-      ];
-
-      rows.forEach(r => {
-        ws.addRow({
-          ts: r.ts,
-          date: r.date_ymd,
-          batch_id: r.batch_id,
-          session_id: r.session_id,
-          reg_no: r.reg_no,
-          name: r.name,
-          subject: r.subject,
-          start_t: r.start_t,
-          end_t: r.end_t,
-          location: r.location,
-        });
-      });
-    }
-
-    res.setHeader(
-      'Content-Type',
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-    );
-    res.setHeader(
-      'Content-Disposition',
-      `attachment; filename="attendance_all.xlsx"`
-    );
-
-    await wb.xlsx.write(res);
-    res.end();
-  } catch (err) {
-    console.error('ALL EXPORT ERROR', err);
-    res.status(500).json({ error: 'Failed to export attendance' });
+// Start server
+app.listen(PORT, async () => {
+  const connected = await initMongoDB();
+  if (connected) {
+    console.log(`✅ Software server running on :${PORT}`);
+  } else {
+    console.log(`⚠️  Server running on :${PORT} but MongoDB not connected`);
   }
 });
-
-
-app.get('/api/health', (_req,res)=>res.json({ ok:true, now:new Date().toISOString() }));
-// Get full weekly schedule for a batch (Mon..Fri grouped), sorted by start time
-app.get('/api/batches/:id/schedule', auth, admin, async (req, res) => {
-  const { id } = req.params;
-  const rows = await sql`
-    SELECT * FROM schedule_slots
-    WHERE batch_id=${id}
-    ORDER BY weekday, start_t
-  `;
-  const days = { mon:[], tue:[], wed:[], thu:[], fri:[] };
-  rows.forEach(r => {
-    const key = ({1:'mon',2:'tue',3:'wed',4:'thu',5:'fri'})[r.weekday];
-    if (key) days[key].push(r);
-  });
-  res.json({ schedule: days });
-});
-
-// Get slots for a specific date (uses that date's weekday)
-app.get('/api/schedule/on-date', auth, async (req, res) => {
-  const { batchId, date } = req.query || {};
-  if (!batchId || !date) return res.status(400).json({ error: 'batchId & date required' });
-  const d = dayjs(String(date));
-  const wd = d.day();                 // 0..6 (Sun..Sat)
-  if (wd === 0 || wd === 6) return res.json({ date, weekday: wd, classes: [] }); // weekend
-  const rows = await sql`
-    SELECT * FROM schedule_slots
-    WHERE batch_id=${batchId} AND weekday=${wd}
-    ORDER BY start_t
-  `;
-  res.json({ date, weekday: wd, classes: rows });
-});
-app.get('/api/on-date', auth, async (req, res) => {
-  const { batchId, date } = req.query || {};
-  if (!batchId || !date) return res.status(400).json({ error: 'batchId & date required' });
-  const d = dayjs(String(date));
-  const wd = d.day();
-  if (wd === 0 || wd === 6) return res.json({ date, weekday: wd, classes: [] });
-  const rows = await sql`
-    SELECT * FROM schedule_slots
-    WHERE batch_id=${batchId} AND weekday=${wd}
-    ORDER BY start_t
-  `;
-  res.json({ date, weekday: wd, classes: rows });
-});
-// Fallback alias: POST /api/generate  { batchId, dateYMD, slotId }
-app.post('/api/generate', auth, admin, async (req, res) => {
-  try {
-    const { batchId, dateYMD, slotId } = req.body || {};
-    if (!batchId || !dateYMD || !slotId)
-      return res.status(400).json({ error: 'batchId, dateYMD, slotId required' });
-
-    const [slot] = await sql`
-      SELECT * FROM schedule_slots WHERE id=${slotId} AND batch_id=${batchId} LIMIT 1
-    `;
-    if (!slot) return res.status(404).json({ error: 'Slot not found' });
-
-    const sessionId = uuid();
-    const token = signSession({ sessionId, batchId, dateYMD, slot });
-    const url = `${CLIENT_URL}/scan?token=${encodeURIComponent(token)}`;
-    const qrDataUrl = await QRCode.toDataURL(url, { margin: 1, width: 360 });
-    res.json({ url, qrDataUrl, session: { sessionId, dateYMD, batchId, slot } });
-  } catch (e) {
-    console.error('ALIAS /api/generate error', e);
-    res.status(500).json({ error: 'Server error' });
-  }
-});
-
-
-app.listen(PORT, ()=>console.log(`Software server running on :${PORT}`));

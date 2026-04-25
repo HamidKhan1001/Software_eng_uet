@@ -26,6 +26,15 @@ export default function Sidebar({ open, onClose, user }) {
           <li className={loc.pathname.startsWith("/dashboard") ? "active" : ""}>
             <Link to="/dashboard" onClick={onClose}> Dashboard</Link>
           </li>
+          <li className={loc.pathname.startsWith("/announcements") ? "active" : ""}>
+            <Link to="/announcements" onClick={onClose}>Announcements</Link>
+          </li>
+          <li className={loc.pathname.startsWith("/past-papers") ? "active" : ""}>
+            <Link to="/past-papers" onClick={onClose}>Past Papers</Link>
+          </li>
+          <li className={loc.pathname.startsWith("/timetable") ? "active" : ""}>
+            <Link to="/timetable" onClick={onClose}>Timetable</Link>
+          </li>
           <li className={loc.pathname.startsWith("/community") ? "active" : ""}>
             <Link to="/community" onClick={onClose}>Community</Link>
           </li>

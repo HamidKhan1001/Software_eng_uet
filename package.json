@@ -1,0 +1,18 @@
+{
+  "name": "software-eng-portal",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "server": "cd server && npm start",
+    "client": "cd software && npm start",
+    "dev": "concurrently \"npm run server\" \"npm run client\"",
+    "build": "cd software && npm run build",
+    "heroku-postbuild": "cd server && npm install && cd ../software && npm install && npm run build"
+  },
+  "dependencies": {
+    "concurrently": "^8.2.0"
+  },
+  "engines": {
+    "node": "18.x"
+  }
+}

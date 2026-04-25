@@ -1,0 +1,224 @@
+/* Timetable Page Styles */
+
+.timetable-page {
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 30px 20px;
+}
+
+.timetable-page h1 {
+  font-size: 2rem;
+  margin-bottom: 40px;
+  color: #333;
+  text-align: center;
+}
+
+.semester-selector {
+  background: white;
+  padding: 25px;
+  border-radius: 10px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  margin-bottom: 40px;
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  flex-wrap: wrap;
+}
+
+.semester-selector label {
+  font-weight: 600;
+  color: #333;
+  font-size: 1rem;
+}
+
+.form-select {
+  padding: 10px 15px;
+  border: 2px solid #e0e0e0;
+  border-radius: 5px;
+  font-size: 1rem;
+  background: white;
+  cursor: pointer;
+  transition: border-color 0.3s ease;
+}
+
+.form-select:focus {
+  outline: none;
+  border-color: #667eea;
+}
+
+.timetable-content {
+  display: flex;
+  flex-direction: column;
+  gap: 30px;
+}
+
+.course-section {
+  background: white;
+  padding: 25px;
+  border-radius: 10px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  border-left: 5px solid #667eea;
+}
+
+.course-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  gap: 15px;
+  flex-wrap: wrap;
+}
+
+.course-header h3 {
+  margin: 0;
+  color: #333;
+  font-size: 1.3rem;
+}
+
+.course-code {
+  background: #f0f0f0;
+  padding: 5px 12px;
+  border-radius: 20px;
+  font-weight: 600;
+  color: #667eea;
+  font-size: 0.9rem;
+}
+
+.schedule-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 15px;
+}
+
+.schedule-item {
+  background: #f8f9fa;
+  padding: 20px;
+  border-radius: 8px;
+  border: 2px solid #e0e0e0;
+  transition: all 0.3s ease;
+}
+
+.schedule-item:hover {
+  border-color: #667eea;
+  background: #f0f3ff;
+}
+
+.schedule-item .day {
+  font-weight: 700;
+  color: #333;
+  font-size: 1.1rem;
+  margin-bottom: 8px;
+}
+
+.schedule-item .time {
+  color: #667eea;
+  font-weight: 600;
+  font-size: 1rem;
+  margin-bottom: 8px;
+}
+
+.schedule-item .room {
+  color: #666;
+  font-size: 0.95rem;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.admin-note {
+  background: #e8f4f8;
+  border-left: 4px solid #3498db;
+  padding: 15px;
+  border-radius: 5px;
+  margin-top: 40px;
+  color: #2c5aa0;
+}
+
+.admin-note p {
+  margin: 0;
+  font-weight: 500;
+}
+
+.error-message {
+  background: #fee;
+  color: #c33;
+  padding: 15px;
+  border-radius: 5px;
+  margin-bottom: 20px;
+  border-left: 4px solid #c33;
+}
+
+.loading,
+.no-data {
+  text-align: center;
+  color: #999;
+  padding: 60px 20px;
+  font-size: 1.1rem;
+}
+
+/* Mobile Responsiveness */
+@media (max-width: 768px) {
+  .timetable-page {
+    padding: 20px 15px;
+  }
+
+  .timetable-page h1 {
+    font-size: 1.5rem;
+    margin-bottom: 30px;
+  }
+
+  .semester-selector {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 20px;
+  }
+
+  .semester-selector label {
+    width: 100%;
+  }
+
+  .form-select {
+    width: 100%;
+  }
+
+  .course-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .schedule-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .schedule-item {
+    padding: 15px;
+  }
+
+  .course-section {
+    padding: 20px;
+  }
+}
+
+@media (max-width: 480px) {
+  .course-header h3 {
+    font-size: 1.1rem;
+  }
+
+  .course-code {
+    font-size: 0.8rem;
+    padding: 4px 10px;
+  }
+
+  .schedule-item .day {
+    font-size: 1rem;
+  }
+
+  .schedule-item .time {
+    font-size: 0.95rem;
+  }
+
+  .schedule-item .room {
+    font-size: 0.9rem;
+  }
+}

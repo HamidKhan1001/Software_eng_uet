@@ -101,6 +101,25 @@ allExport: () => {
     window.open(url, "_blank");
   },
 
+  // --- Announcements ---
+  getAnnouncements: () => request("/announcements"),
+  createAnnouncement: ({ title, content }) => request("/announcements", "POST", { title, content }),
+  deleteAnnouncement: (id) => request(`/announcements/${encodeURIComponent(id)}`, "DELETE"),
+
+  // --- Past Papers ---
+  getPastPapers: () => request("/past-papers"),
+  createPastPaper: ({ title, course, semester }) => request("/past-papers", "POST", { title, course, semester }),
+  deletePastPaper: (id) => request(`/past-papers/${encodeURIComponent(id)}`, "DELETE"),
+
+  // --- Course Notes ---
+  getNotes: () => request("/notes"),
+  createNote: ({ title, course, content }) => request("/notes", "POST", { title, course, content }),
+  deleteNote: (id) => request(`/notes/${encodeURIComponent(id)}`, "DELETE"),
+
+  // --- Timetables ---
+  getTimetable: (batchId) => request(`/timetables/${encodeURIComponent(batchId)}`),
+  updateTimetable: (batchId, timetable) => request(`/timetables/${encodeURIComponent(batchId)}`, "PUT", { timetable }),
+
   // --- Health ---
   health: () => request("/health"),
 };

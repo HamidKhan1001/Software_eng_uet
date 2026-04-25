@@ -54,6 +54,15 @@ export default function Header({ user, onToggleSidebar }) {
           <Link className={loc.pathname.startsWith("/dashboard") ? "active" : ""} to="/dashboard">
             Dashboard
           </Link>
+          <Link className={loc.pathname.startsWith("/announcements") ? "active" : ""} to="/announcements">
+            Announcements
+          </Link>
+          <Link className={loc.pathname.startsWith("/past-papers") ? "active" : ""} to="/past-papers">
+            Past Papers
+          </Link>
+          <Link className={loc.pathname.startsWith("/timetable") ? "active" : ""} to="/timetable">
+            Timetable
+          </Link>
           <Link className={loc.pathname.startsWith("/community") ? "active" : ""} to="/community">
             Community
           </Link>
@@ -113,6 +122,12 @@ export default function Header({ user, onToggleSidebar }) {
             </div>
           )}
         </div>
+      )}
+
+      {!user && loc.pathname !== "/login" && (
+        <Link to="/login" className="btn btn-primary" style={{ marginLeft: "auto" }}>
+          Login
+        </Link>
       )}
     </header>
   );
