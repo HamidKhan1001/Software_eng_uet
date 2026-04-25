@@ -154,6 +154,7 @@ export default function Login({ setUser }) {
             </button>
           </div>
         )}
+      </div>
       <div className="code-bg">
         <div className="code-char">const UET = true;</div>
         <div className="code-char">function learn() { }</div>

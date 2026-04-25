@@ -86,7 +86,7 @@ export default function Home() {
         {/* Animated Code Background */}
         <div className="hero-code-bg">
           <div className="code-line">UET Peshawar - Software Engineering</div>
-          <div className="code-line">const excellence = { quality: true };</div>
+          <div className="code-line">const excellence = &#123; quality: true &#125;;</div>
           <div className="code-line">class UETStudent &#123; learn(); grow(); &#125;</div>
           <div className="code-line">async function buildFuture() &#123; await innovate(); &#125;</div>
           <div className="code-line">const skills = ["Python", "Java", "JS"];</div>
@@ -226,7 +226,7 @@ export default function Home() {
               return (
                 <div key={idx} className="team-member">
                   <div className="member-photo">
-                    <img src={imagePath} alt={member.name} style={{width: "100%", height: "100%", objectFit: "cover"}} onError={(e) => {e.target.style.display = "none"; e.target.nextElementSibling?.style.display = "flex";}} />
+                    <img src={imagePath} alt={member.name} style={{width: "100%", height: "100%", objectFit: "cover"}} onError={(e) => {e.target.style.display = "none"; if(e.target.nextElementSibling) e.target.nextElementSibling.style.display = "flex";}} />
                     <i className="fas fa-user-circle" style={{display: "none", fontSize: "60px"}}></i>
                   </div>
                   <h3>{member.name}</h3>
