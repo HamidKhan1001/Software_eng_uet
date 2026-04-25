@@ -180,12 +180,14 @@ export default function Home() {
                 <img src={require("../assets/members/HamidNaeem.jpeg")} alt="Hamid Naeem" />
               </div>
               <h3>Hamid Naeem</h3>
-              <p className="position">Faculty Member</p>
+              <p className="position">Vice President, SE Society</p>
               <p className="bio">
-                Specialist in software development methodologies and bringing industry insights to guide students through their engineering journey.
+                Leading the SE Society initiatives and ensuring quality student engagement through workshops, competitions, and networking opportunities.
               </p>
               <div className="staff-contact">
-                <p>SE Society Advisor</p>
+                <a href="mailto:hamid@uet.edu.pk" title="Email">
+                  <i className="fas fa-envelope"></i>
+                </a>
               </div>
             </div>
           </div>
