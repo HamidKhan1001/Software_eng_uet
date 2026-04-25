@@ -266,7 +266,7 @@ app.post('/api/auth/register', async (req, res) => {
     const token = jwt.sign({ id: userId.toString(), name, email: normEmail, role: finalRole, batch_id: batch._id.toString() }, JWT_SECRET, { expiresIn: '7d' });
     
     console.log('Returning success response');
-    res.json({ user: { id: userId.toString(), name, email: normEmail, role: finalRole }, token });
+    res.json({ user: { id: userId.toString(), name, email: normEmail, role: finalRole, batchId: batch._id.toString() }, token });
   } catch (err) {
     console.error('Register error:', err);
     res.status(500).json({ error: err.message });
@@ -295,7 +295,7 @@ app.post('/api/auth/login', async (req, res) => {
     );
     
     res.json({
-      user: { id: user._id.toString(), name: user.name, email: user.email, role: user.role, batch_id: user.batch_id },
+      user: { id: user._id.toString(), name: user.name, email: user.email, role: user.role, batchId: user.batch_id },
       token
     });
   } catch (err) {
@@ -304,7 +304,7 @@ app.post('/api/auth/login', async (req, res) => {
   }
 });
 
-app.get('/api/auth/me', auth, (req, res) => res.json({ user: req.user }));
+app.get('/api/auth/me', auth, (req, res) => res.json({ user: { ...req.user, batchId: req.user.batch_id } }));
 
 // Batches
 app.get('/api/batches', auth, async (_req, res) => {
