@@ -214,20 +214,31 @@ app.post('/api/auth/register', async (req, res) => {
       console.log('Validation failed:', { name: !!name, email: !!normEmail, password: !!password, regNo: !!regNo, batchNumber: !!batchNumber });
       return res.status(400).json({ error: 'Missing fields' });
     }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normEmail)) 
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normEmail)) {
+      console.log('Email validation failed:', normEmail);
       return res.status(400).json({ error: 'Invalid email' });
-    if (String(password).length < 8) 
+    }
+    console.log('Password length:', String(password).length);
+    if (String(password).length < 8) {
+      console.log('Password too short');
       return res.status(400).json({ error: 'Password too short (min 8)' });
+    }
     
     const userCount = await collections.users.countDocuments();
     const finalRole = userCount === 0 ? 'admin' : 'student';
+    console.log('User count:', userCount, 'Role:', finalRole);
     
     const exists = await collections.users.findOne({ email: normEmail });
-    if (exists) return res.status(400).json({ error: 'Email already exists' });
+    if (exists) {
+      console.log('Email already exists:', normEmail);
+      return res.status(400).json({ error: 'Email already exists' });
+    }
     
     // Ensure batch exists
+    console.log('Looking for batch:', String(batchNumber));
     let batch = await collections.batches.findOne({ number: String(batchNumber) });
     if (!batch) {
+      console.log('Creating batch:', batchNumber);
       batch = {
         _id: new ObjectId(),
         number: String(batchNumber),
@@ -235,9 +246,11 @@ app.post('/api/auth/register', async (req, res) => {
       };
       await collections.batches.insertOne(batch);
     }
+    console.log('Batch ID:', batch._id);
     
     const hash = await bcryptjs.hash(password, 10);
     const userId = new ObjectId();
+    console.log('Inserting user:', { name, email: normEmail, userId });
     
     await collections.users.insertOne({
       _id: userId,
@@ -249,8 +262,10 @@ app.post('/api/auth/register', async (req, res) => {
       batch_id: batch._id.toString()
     });
     
+    console.log('User inserted successfully');
     const token = jwt.sign({ id: userId.toString(), name, email: normEmail, role: finalRole, batch_id: batch._id.toString() }, JWT_SECRET, { expiresIn: '7d' });
     
+    console.log('Returning success response');
     res.json({ user: { id: userId.toString(), name, email: normEmail, role: finalRole }, token });
   } catch (err) {
     console.error('Register error:', err);
