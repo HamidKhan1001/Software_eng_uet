@@ -205,12 +205,15 @@ app.post('/api/auth/register', async (req, res) => {
   
   try {
     let { name, email, password, regNo, batchNumber } = req.body || {};
+    console.log('Register request:', { name, email, password: password ? '****' : 'MISSING', regNo, batchNumber });
     name = (name || '').trim();
     regNo = (regNo || '').trim();
     const normEmail = (email || '').trim().toLowerCase();
     
-    if (!name || !normEmail || !password || !regNo || !batchNumber) 
+    if (!name || !normEmail || !password || !regNo || !batchNumber) {
+      console.log('Validation failed:', { name: !!name, email: !!normEmail, password: !!password, regNo: !!regNo, batchNumber: !!batchNumber });
       return res.status(400).json({ error: 'Missing fields' });
+    }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normEmail)) 
       return res.status(400).json({ error: 'Invalid email' });
     if (String(password).length < 8) 
