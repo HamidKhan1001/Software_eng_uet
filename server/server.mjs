@@ -74,7 +74,23 @@ async function initMongoDB() {
 // Express App
 const app = express();
 app.use(helmet());
-app.use(cors({ origin: CLIENT_URL, credentials: true }));
+app.use(cors({ 
+  origin: (origin, callback) => {
+    const allowedOrigins = [
+      'http://localhost:3000',
+      'https://softwarse-6f20932b8f19.herokuapp.com',
+      'https://software-eng-uet.vercel.app',
+      'https://software-eng-uet-git-main-hamid-khans-projects-8e38ad0a.vercel.app',
+      'https://software-eng-79owzi6x9-hamid-khans-projects-8e38ad0a.vercel.app'
+    ];
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true 
+}));
 app.use(express.json());
 
 // Email setup
