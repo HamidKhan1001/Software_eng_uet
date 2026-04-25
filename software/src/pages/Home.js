@@ -50,15 +50,31 @@ export default function Home() {
 
       {/* Hero Section */}
       <section className="hero">
+        {/* Animated Code Background */}
+        <div className="hero-code-bg">
+          <div className="code-line">const department = "Software Engineering";</div>
+          <div className="code-line">function innovate() { return excellence; }</div>
+          <div className="code-line">class Student { constructor(name) { this.learn(); } }</div>
+          <div className="code-line">const skills = ["Python", "Java", "JavaScript"];</div>
+          <div className="code-line">while (true) { buildProjects(); growTogether(); }</div>
+          <div className="code-line">async function collaborate() { await learn(); }</div>
+          <div className="code-line">interface Excellence { quality: true; innovation: boolean; }</div>
+          <div className="code-line">const vision = "Leading Software Engineers";</div>
+        </div>
+
         <div className="hero-content">
+          <div className="hero-badge">
+            <i className="fas fa-code"></i>
+            Software Excellence
+          </div>
           <h1>UET Software Engineering</h1>
-          <p className="tagline">Building Tomorrow's Innovators</p>
+          <p className="tagline">Excellence in Code, Innovation in Action</p>
           <div className="cta-buttons">
             <Link to="/login" className="btn btn-primary">
-              Student Portal
+              <i className="fas fa-sign-in-alt"></i> Student Portal
             </Link>
             <button onClick={() => scrollToSection("about")} className="btn btn-secondary">
-              Learn More
+              <i className="fas fa-arrow-down"></i> Learn More
             </button>
           </div>
         </div>
