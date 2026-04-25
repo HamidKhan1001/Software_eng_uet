@@ -1,5 +1,5 @@
 // src/pages/Login.js
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../api";
 import "../styles/login.css";
@@ -11,6 +11,7 @@ export default function Login({ setUser }) {
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState("");
   const [error, setError] = useState("");
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -78,26 +79,98 @@ export default function Login({ setUser }) {
     }
   };
 
+  // Scroll animation effect
+  useEffect(() => {
+    const handleScroll = () => {
+      const elements = document.querySelectorAll('.animate-on-scroll');
+      elements.forEach(el => {
+        const rect = el.getBoundingClientRect();
+        if (rect.top < window.innerHeight * 0.8) {
+          el.classList.add('visible');
+        }
+      });
+    };
+
+    window.addEventListener('scroll', handleScroll);
+    handleScroll();
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
   return (
     <div className="login-container">
-      {/* Animated Code Background */}
+      {/* Mobile Header with Hamburger Menu */}
+      <div className="mobile-header">
+        <div className="mobile-header-content">
+          <div className="mobile-logo">
+            <i className="fas fa-graduation-cap"></i>
+          </div>
+          <div className="mobile-title">UET</div>
+          <button
+            className="hamburger-btn"
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            aria-label="Toggle menu"
+          >
+            <i className={`fas fa-${mobileMenuOpen ? 'times' : 'bars'}`}></i>
+          </button>
+        </div>
+
+        {/* Mobile Sidebar Menu */}
+        {mobileMenuOpen && (
+          <div className="mobile-menu animate-slide-down">
+            <div className="mobile-menu-item">
+              <i className="fas fa-graduation-cap"></i>
+              <span>UET Peshawar</span>
+            </div>
+            <div className="mobile-menu-item">
+              <i className="fas fa-code"></i>
+              <span>Software Engineering</span>
+            </div>
+            <div className="mobile-menu-item">
+              <i className="fas fa-star"></i>
+              <span>Excellence in Code</span>
+            </div>
+            <div className="mobile-menu-item">
+              <i className="fas fa-lightbulb"></i>
+              <span>Innovation & Learning</span>
+            </div>
+            <div className="mobile-menu-divider"></div>
+            <button
+              className="mobile-menu-btn"
+              onClick={() => {
+                setTab("login");
+                setMobileMenuOpen(false);
+              }}
+            >
+              <i className="fas fa-sign-in-alt"></i> Login
+            </button>
+            <button
+              className="mobile-menu-btn"
+              onClick={() => {
+                setTab("signup");
+                setMobileMenuOpen(false);
+              }}
+            >
+              <i className="fas fa-user-plus"></i> Sign Up
+            </button>
+          </div>
+        )}
       <div className="code-bg">
-        <div className="code-char">const</div>
-        <div className="code-char">function</div>
-        <div className="code-char">class</div>
-        <div className="code-char">return</div>
-        <div className="code-char">import</div>
-        <div className="code-char">export</div>
-        <div className="code-char">async</div>
-        <div className="code-char">await</div>
-        <div className="code-char">let</div>
-        <div className="code-char">var</div>
-        <div className="code-char">if</div>
-        <div className="code-char">else</div>
-        <div className="code-char">for</div>
-        <div className="code-char">while</div>
-        <div className="code-char">array</div>
-        <div className="code-char">object</div>
+        <div className="code-char">const UET = true;</div>
+        <div className="code-char">function learn() { }</div>
+        <div className="code-char">class Student { }</div>
+        <div className="code-char">async init()</div>
+        <div className="code-char">import UET</div>
+        <div className="code-char">export excellence</div>
+        <div className="code-char">await success();</div>
+        <div className="code-char">SoftwareEng ++</div>
+        <div className="code-char">Peshawar</div>
+        <div className="code-char">Innovation</div>
+        <div className="code-char">git commit -m</div>
+        <div className="code-char">npm run dev</div>
+        <div className="code-char">const future</div>
+        <div className="code-char">while(true) {}</div>
+        <div className="code-char">Array.map()</div>
+        <div className="code-char">Object.create()</div>
       </div>
 
       <div className="login-wrapper">

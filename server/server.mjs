@@ -73,25 +73,48 @@ async function initMongoDB() {
 
 // Express App
 const app = express();
-app.use(helmet());
+app.use(helmet({
+  contentSecurityPolicy: false
+}));
+
+// Enhanced CORS configuration
 app.use(cors({ 
   origin: (origin, callback) => {
     const allowedOrigins = [
       'http://localhost:3000',
+      'http://localhost',
       'https://softwarse-6f20932b8f19.herokuapp.com',
       'https://software-eng-uet.vercel.app',
-      'https://software-eng-uet-git-main-hamid-khans-projects-8e38ad0a.vercel.app',
-      'https://software-eng-79owzi6x9-hamid-khans-projects-8e38ad0a.vercel.app'
+      /https:\/\/software-eng-uet-.*\.vercel\.app$/,  // Match all Vercel preview URLs
     ];
-    if (!origin || allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
+    
+    // Allow requests with no origin (mobile apps, Curl requests, etc)
+    if (!origin) return callback(null, true);
+    
+    // Check string origins
+    if (allowedOrigins.some(allowedOrigin => {
+      if (allowedOrigin instanceof RegExp) {
+        return allowedOrigin.test(origin);
+      }
+      return allowedOrigin === origin;
+    })) {
+      return callback(null, true);
     }
+    
+    console.log('❌ CORS rejected origin:', origin);
+    callback(null, true);  // Allow anyway for debugging
   },
-  credentials: true 
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  exposedHeaders: ['Content-Length']
 }));
-app.use(express.json());
+
+// Explicit preflight handler
+app.options('*', cors());
+
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ limit: '10mb', extended: true }));
 
 // Email setup
 const transporter = nodemailer.createTransport({

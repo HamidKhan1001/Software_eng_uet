@@ -27,6 +27,7 @@ async function request(path, method = "GET", body) {
       method,
       headers,
       body: body ? JSON.stringify(body) : undefined,
+      credentials: 'include',
     });
   } catch (err) {
     throw new Error(`Network error: ${err.message || err}`);

@@ -1,9 +1,32 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import "../styles/home.css";
 
 export default function Home() {
   const navigate = useNavigate();
+
+  // Scroll animation observer
+  useEffect(() => {
+    const observerOptions = {
+      threshold: 0.1,
+      rootMargin: '0px 0px -50px 0px'
+    };
+
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('visible');
+          observer.unobserve(entry.target);
+        }
+      });
+    }, observerOptions);
+
+    document.querySelectorAll('.scroll-animate, .scroll-animate-left, .scroll-animate-scale').forEach(el => {
+      observer.observe(el);
+    });
+
+    return () => observer.disconnect();
+  }, []);
 
   const scrollToSection = (id) => {
     const element = document.getElementById(id);
@@ -28,25 +51,21 @@ export default function Home() {
 
   const getImagePath = (name) => {
     const filenameMap = {
-      "Hamid Naeem": "HamidNaeem.jpg",
-      "Malak Saad Khan": "malak-saad-khan.jpg",
-      "Muhammad Adam": "muhammad-adam.jpg",
-      "Muhammad Umar": "muhammad-umar.jpg",
-      "Hammad Khan": "hammad-khan.jpg",
-      "Waleed Khan": "waleed-khan.jpg",
-      "Mustaqim Khan": "mustaqim-khan.jpg",
-      "Zuhaib": "zuhaib.jpg",
-      "Muhammad Ahmad Mushtaq": "muhammad-ahmad-mushtaq.jpg",
-      "Abdul Samad": "abdul-samad.jpg",
-      "Hamza Taif": "hamza-taif.jpg",
+      "Hamid Naeem": "HamidNaeem.jpeg",
+      "Malak Saad Khan": "malak-saad-khan.jpeg",
+      "Muhammad Adam": "muhammad-adam.jpeg",
+      "Muhammad Umar": "muhammad-umar.jpeg",
+      "Hammad Khan": "hammad-khan.jpeg",
+      "Waleed Khan": "waleed-khan.jpeg",
+      "Mustaqim Khan": "mustaqim-khan.jpeg",
+      "Zuhaib": "zuhaib.jpeg",
+      "Muhammad Ahmad Mushtaq": "muhammad-ahmad-mushtaq.jpeg",
+      "Abdul Samad": "abdul-samad.jpeg",
+      "Hamza Taif": "hamza-taif.jpeg",
     };
     
-    const filename = filenameMap[name] || name.toLowerCase().replace(/\s+/g, "-") + ".jpg";
-    try {
-      return require(`../assets/members/${filename}`);
-    } catch {
-      return null;
-    }
+    const filename = filenameMap[name] || name.toLowerCase().replace(/\s+/g, "-") + ".jpeg";
+    return `/assets/members/${filename}`;
   };
 
   return (
@@ -66,22 +85,22 @@ export default function Home() {
       <section className="hero">
         {/* Animated Code Background */}
         <div className="hero-code-bg">
-          <div className="code-line">const department = "Software Engineering";</div>
-          <div className="code-line">function innovate() &#123; return excellence; &#125;</div>
-          <div className="code-line">class Student &#123; constructor(name) &#123; &#125; &#125;</div>
-          <div className="code-line">const skills = ["Python", "Java", "JavaScript"];</div>
-          <div className="code-line">while(true) &#123; buildProjects(); &#125;</div>
-          <div className="code-line">async function collaborate() &#123; await learn(); &#125;</div>
-          <div className="code-line">interface Excellence &#123; quality: true &#125;</div>
+          <div className="code-line">UET Peshawar - Software Engineering</div>
+          <div className="code-line">const excellence = { quality: true };</div>
+          <div className="code-line">class UETStudent &#123; learn(); grow(); &#125;</div>
+          <div className="code-line">async function buildFuture() &#123; await innovate(); &#125;</div>
+          <div className="code-line">const skills = ["Python", "Java", "JS"];</div>
+          <div className="code-line">function softwareEngineering() &#123; return excellence; &#125;</div>
+          <div className="code-line">interface Excellence &#123; uet: true &#125;</div>
           <div className="code-line">const vision = "Leading Software Engineers";</div>
         </div>
 
         <div className="hero-content">
           <div className="hero-badge">
             <i className="fas fa-code"></i>
-            Software Excellence
+            UET Peshawar - Software Engineering
           </div>
-          <h1>UET Software Engineering</h1>
+          <h1>UET Software Engineering Department</h1>
           <p className="tagline">Excellence in Code, Innovation in Action</p>
           <div className="cta-buttons">
             <Link to="/login" className="btn btn-primary">
@@ -207,11 +226,8 @@ export default function Home() {
               return (
                 <div key={idx} className="team-member">
                   <div className="member-photo">
-                    {imagePath ? (
-                      <img src={imagePath} alt={member.name} />
-                    ) : (
-                      <i className="fas fa-user-circle"></i>
-                    )}
+                    <img src={imagePath} alt={member.name} style={{width: "100%", height: "100%", objectFit: "cover"}} onError={(e) => {e.target.style.display = "none"; e.target.nextElementSibling?.style.display = "flex";}} />
+                    <i className="fas fa-user-circle" style={{display: "none", fontSize: "60px"}}></i>
                   </div>
                   <h3>{member.name}</h3>
                   <p className="member-role">{member.role}</p>

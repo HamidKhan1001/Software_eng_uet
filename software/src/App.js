@@ -12,6 +12,7 @@ import Scan from "./pages/Scan";
 import Announcements from "./pages/Announcements";
 import PastPapers from "./pages/PastPapers";
 import Timetable from "./pages/Timetable";
+import "./styles/global.css";
 import "./styles.css";
 
 export default function App() {
