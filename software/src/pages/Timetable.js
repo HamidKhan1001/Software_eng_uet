@@ -10,6 +10,7 @@ export default function Timetable({ user }) {
 
   useEffect(() => {
     fetchTimetables();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const fetchTimetables = async () => {

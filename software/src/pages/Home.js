@@ -255,9 +255,9 @@ export default function Home() {
                 <i className="fas fa-book"></i> Resources
               </h4>
               <ul>
-                <li><a href="#">Past Papers</a></li>
-                <li><a href="#">Course Materials</a></li>
-                <li><a href="#">Announcements</a></li>
+                <li><button onClick={() => navigate("/past-papers")} style={{ background: "none", border: "none", color: "inherit", cursor: "pointer", textDecoration: "underline" }}>Past Papers</button></li>
+                <li><button onClick={() => navigate("/")} style={{ background: "none", border: "none", color: "inherit", cursor: "pointer", textDecoration: "underline" }}>Course Materials</button></li>
+                <li><button onClick={() => navigate("/announcements")} style={{ background: "none", border: "none", color: "inherit", cursor: "pointer", textDecoration: "underline" }}>Announcements</button></li>
               </ul>
             </div>
             <div className="footer-section">
@@ -265,18 +265,18 @@ export default function Home() {
                 <i className="fas fa-share-alt"></i> Follow Us
               </h4>
               <div className="social-links">
-                <a href="#" aria-label="Facebook" title="Facebook">
+                <button onClick={() => {}} aria-label="Facebook" title="Facebook" style={{ background: "none", border: "none", color: "inherit", cursor: "pointer" }}>
                   <i className="fab fa-facebook-f"></i>
-                </a>
-                <a href="#" aria-label="Instagram" title="Instagram">
+                </button>
+                <button onClick={() => {}} aria-label="Instagram" title="Instagram" style={{ background: "none", border: "none", color: "inherit", cursor: "pointer" }}>
                   <i className="fab fa-instagram"></i>
-                </a>
-                <a href="#" aria-label="LinkedIn" title="LinkedIn">
+                </button>
+                <button onClick={() => {}} aria-label="LinkedIn" title="LinkedIn" style={{ background: "none", border: "none", color: "inherit", cursor: "pointer" }}>
                   <i className="fab fa-linkedin-in"></i>
-                </a>
-                <a href="#" aria-label="Twitter" title="Twitter">
+                </button>
+                <button onClick={() => {}} aria-label="Twitter" title="Twitter" style={{ background: "none", border: "none", color: "inherit", cursor: "pointer" }}>
                   <i className="fab fa-twitter"></i>
-                </a>
+                </button>
               </div>
             </div>
             <div className="footer-section">

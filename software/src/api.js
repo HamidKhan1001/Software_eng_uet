@@ -51,13 +51,8 @@ export const api = {
     request("/auth/register", "POST", { name, email, password, regNo, batchNumber }),
   login: (email, password) => request("/auth/login", "POST", { email, password }),
   me: () => request("/auth/me"),
-// --- Auth ---
-register: ({ name, email, password, regNo, batchNumber }) =>
-  request("/auth/register", "POST", { name, email, password, regNo, batchNumber }),
-login: (email, password) => request("/auth/login", "POST", { email, password }),
-me: () => request("/auth/me"),
-requestReset: (email) => request("/auth/request-reset", "POST", { email }),   // ⬅ ADD THIS
-resetPassword: (token, password) => request("/auth/reset-password", "POST", { token, password }), // ⬅ ADD THIS
+  requestReset: (email) => request("/auth/request-reset", "POST", { email }),
+  resetPassword: (token, password) => request("/auth/reset-password", "POST", { token, password }),
 
 
 // --- Attendance (admin all export + view) ---
