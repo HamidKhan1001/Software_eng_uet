@@ -77,44 +77,25 @@ app.use(helmet({
   contentSecurityPolicy: false
 }));
 
-// Enhanced CORS configuration
-app.use(cors({ 
-  origin: (origin, callback) => {
-    const allowedOrigins = [
-      'http://localhost:3000',
-      'http://localhost',
-      'https://softwarse-6f20932b8f19.herokuapp.com',
-      'https://software-eng-uet.vercel.app',
-      /https:\/\/software-eng-uet-.*\.vercel\.app$/,  // Match all Vercel preview URLs
-    ];
-    
-    // Allow requests with no origin (mobile apps, Curl requests, etc)
-    if (!origin) return callback(null, true);
-    
-    // Check string origins
-    if (allowedOrigins.some(allowedOrigin => {
-      if (allowedOrigin instanceof RegExp) {
-        return allowedOrigin.test(origin);
-      }
-      return allowedOrigin === origin;
-    })) {
-      return callback(null, true);
-    }
-    
-    console.log('❌ CORS rejected origin:', origin);
-    callback(null, true);  // Allow anyway for debugging
-  },
+// Simple CORS configuration
+app.use(cors({
+  origin: true,
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
-  exposedHeaders: ['Content-Length']
+  optionsSuccessStatus: 200
 }));
 
-// Explicit preflight handler
+// Preflight requests
 app.options('*', cors());
 
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ limit: '10mb', extended: true }));
+
+// Health check endpoint
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
 
 // Email setup
 const transporter = nodemailer.createTransport({
@@ -215,6 +196,8 @@ app.get('/api/health', (_req, res) => res.json({ ok: true, now: new Date().toISO
 
 // Auth Routes
 app.post('/api/auth/register', async (req, res) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Credentials', 'true');
   if (!db) return res.status(503).json({ error: commonErrorMessage });
   
   try {
@@ -270,6 +253,8 @@ app.post('/api/auth/register', async (req, res) => {
 });
 
 app.post('/api/auth/login', async (req, res) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Credentials', 'true');
   if (!db) return res.status(503).json({ error: commonErrorMessage });
   
   try {
