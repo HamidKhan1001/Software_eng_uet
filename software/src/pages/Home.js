@@ -53,12 +53,12 @@ export default function Home() {
         {/* Animated Code Background */}
         <div className="hero-code-bg">
           <div className="code-line">const department = "Software Engineering";</div>
-          <div className="code-line">function innovate() { return excellence; }</div>
-          <div className="code-line">class Student { constructor(name) { this.learn(); } }</div>
+          <div className="code-line">function innovate() &#123; return excellence; &#125;</div>
+          <div className="code-line">class Student &#123; constructor(name) &#123; &#125; &#125;</div>
           <div className="code-line">const skills = ["Python", "Java", "JavaScript"];</div>
-          <div className="code-line">while (true) { buildProjects(); growTogether(); }</div>
-          <div className="code-line">async function collaborate() { await learn(); }</div>
-          <div className="code-line">interface Excellence { quality: true; innovation: boolean; }</div>
+          <div className="code-line">while(true) &#123; buildProjects(); &#125;</div>
+          <div className="code-line">async function collaborate() &#123; await learn(); &#125;</div>
+          <div className="code-line">interface Excellence &#123; quality: true &#125;</div>
           <div className="code-line">const vision = "Leading Software Engineers";</div>
         </div>
 
@@ -161,7 +161,7 @@ export default function Home() {
           <div className="staff-grid">
             <div className="staff-card chairman">
               <div className="staff-avatar">
-                <i className="fas fa-user-tie"></i>
+                <img src={require("../assets/members/chairman.jpeg")} alt="Dr. Nasru Minallah" />
               </div>
               <h3>Dr. Nasru Minallah</h3>
               <p className="position">Chairman</p>
@@ -177,15 +177,15 @@ export default function Home() {
 
             <div className="staff-card faculty">
               <div className="staff-avatar">
-                <i className="fas fa-chalkboard-user"></i>
+                <img src={require("../assets/members/HamidNaeem.jpeg")} alt="Hamid Naeem" />
               </div>
-              <h3>Faculty Members</h3>
-              <p className="position">Experienced Educators</p>
+              <h3>Hamid Naeem</h3>
+              <p className="position">Faculty Member</p>
               <p className="bio">
-                Our dedicated faculty members bring industry experience and academic excellence to guide students through their software engineering journey.
+                Specialist in software development methodologies and bringing industry insights to guide students through their engineering journey.
               </p>
               <div className="staff-contact">
-                <p>Specialized in various software engineering domains</p>
+                <p>SE Society Advisor</p>
               </div>
             </div>
           </div>
@@ -235,7 +235,7 @@ export default function Home() {
               </div>
               <p className="batch-year">Admission Year: 2024</p>
               <div className="batch-images">
-                <p className="batch-note">Photos coming soon...</p>
+                <img src={require("../assets/batches/batch2024.jpeg")} alt="Batch 2024" style={{width: "100%", height: "100%", objectFit: "cover", borderRadius: "8px"}} />
               </div>
             </div>
             <div className="batch-card">
@@ -245,7 +245,7 @@ export default function Home() {
               </div>
               <p className="batch-year">Admission Year: 2025</p>
               <div className="batch-images">
-                <p className="batch-note">Photos coming soon...</p>
+                <img src={require("../assets/batches/batch2025.jpeg")} alt="Batch 2025" style={{width: "100%", height: "100%", objectFit: "cover", borderRadius: "8px"}} />
               </div>
             </div>
           </div>
