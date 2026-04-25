@@ -27,9 +27,23 @@ export default function Home() {
   ];
 
   const getImagePath = (name) => {
-    const filename = name.toLowerCase().replace(/\s+/g, "-");
+    const filenameMap = {
+      "Hamid Naeem": "HamidNaeem.jpg",
+      "Malak Saad Khan": "malak-saad-khan.jpg",
+      "Muhammad Adam": "muhammad-adam.jpg",
+      "Muhammad Umar": "muhammad-umar.jpg",
+      "Hammad Khan": "hammad-khan.jpg",
+      "Waleed Khan": "waleed-khan.jpg",
+      "Mustaqim Khan": "mustaqim-khan.jpg",
+      "Zuhaib": "zuhaib.jpg",
+      "Muhammad Ahmad Mushtaq": "muhammad-ahmad-mushtaq.jpg",
+      "Abdul Samad": "abdul-samad.jpg",
+      "Hamza Taif": "hamza-taif.jpg",
+    };
+    
+    const filename = filenameMap[name] || name.toLowerCase().replace(/\s+/g, "-") + ".jpg";
     try {
-      return require(`../assets/members/${filename}.jpg`);
+      return require(`../assets/members/${filename}`);
     } catch {
       return null;
     }
@@ -88,7 +102,7 @@ export default function Home() {
           {/* SE Society Intro */}
           <div className="se-intro-banner">
             <div className="se-intro-content">
-              <i className="fas fa-star se-intro-icon"></i>
+              <i className="fas fa-code se-intro-icon"></i>
               <h3>Software Excellence Society</h3>
               <p>
                 Our official student organization promoting learning, collaboration, and innovation through workshops, competitions, projects, and networking opportunities.
@@ -175,21 +189,7 @@ export default function Home() {
               </div>
             </div>
 
-            <div className="staff-card faculty">
-              <div className="staff-avatar">
-                <img src={require("../assets/members/HamidNaeem.jpeg")} alt="Hamid Naeem" />
-              </div>
-              <h3>Hamid Naeem</h3>
-              <p className="position">Vice President, SE Society</p>
-              <p className="bio">
-                Leading the SE Society initiatives and ensuring quality student engagement through workshops, competitions, and networking opportunities.
-              </p>
-              <div className="staff-contact">
-                <a href="mailto:hamid@uet.edu.pk" title="Email">
-                  <i className="fas fa-envelope"></i>
-                </a>
-              </div>
-            </div>
+
           </div>
         </div>
       </section>
