@@ -1,9 +1,10 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import "../styles/home.css";
 
 export default function Home() {
   const navigate = useNavigate();
+  const [menuOpen, setMenuOpen] = useState(false);
 
   // Scroll animation observer
   useEffect(() => {
@@ -70,15 +71,47 @@ export default function Home() {
 
   return (
     <div className="home-page">
-      {/* Navigation Links */}
+      {/* Navigation Bar with Hamburger */}
       <nav className="home-nav">
-        <button onClick={() => scrollToSection("about")}>About Us</button>
-        <button onClick={() => scrollToSection("motive")}>Mission & Vision</button>
-        <button onClick={() => scrollToSection("staff")}>Staff & Faculty</button>
-        <button onClick={() => navigate("/se-society")}>SE Society</button>
-        <button onClick={() => scrollToSection("team")}>Team</button>
-        <button onClick={() => scrollToSection("batches")}>Batches</button>
-        <button onClick={() => scrollToSection("contact")}>Contact</button>
+        <div className="nav-container">
+          <div className="nav-brand">
+            <i className="fas fa-graduation-cap"></i>
+            <span>UET SE</span>
+          </div>
+          
+          {/* Desktop Navigation */}
+          <div className="nav-links-desktop">
+            <button onClick={() => scrollToSection("about")}>About Us</button>
+            <button onClick={() => scrollToSection("motive")}>Mission & Vision</button>
+            <button onClick={() => scrollToSection("staff")}>Staff & Faculty</button>
+            <button onClick={() => navigate("/se-society")}>SE Society</button>
+            <button onClick={() => scrollToSection("team")}>Team</button>
+            <button onClick={() => scrollToSection("batches")}>Batches</button>
+            <button onClick={() => scrollToSection("contact")}>Contact</button>
+          </div>
+
+          {/* Hamburger Button */}
+          <button 
+            className="hamburger-menu" 
+            onClick={() => setMenuOpen(!menuOpen)}
+            aria-label="Toggle menu"
+          >
+            <i className={`fas fa-${menuOpen ? 'times' : 'bars'}`}></i>
+          </button>
+
+          {/* Mobile Navigation */}
+          {menuOpen && (
+            <div className="nav-links-mobile">
+              <button onClick={() => { scrollToSection("about"); setMenuOpen(false); }}>About Us</button>
+              <button onClick={() => { scrollToSection("motive"); setMenuOpen(false); }}>Mission & Vision</button>
+              <button onClick={() => { scrollToSection("staff"); setMenuOpen(false); }}>Staff & Faculty</button>
+              <button onClick={() => { navigate("/se-society"); setMenuOpen(false); }}>SE Society</button>
+              <button onClick={() => { scrollToSection("team"); setMenuOpen(false); }}>Team</button>
+              <button onClick={() => { scrollToSection("batches"); setMenuOpen(false); }}>Batches</button>
+              <button onClick={() => { scrollToSection("contact"); setMenuOpen(false); }}>Contact</button>
+            </div>
+          )}
+        </div>
       </nav>
 
       {/* Hero Section */}
@@ -223,20 +256,33 @@ export default function Home() {
           <div className="team-grid">
             {teamMembers.map((member, idx) => {
               const imagePath = getImagePath(member.name);
+              const initials = member.name.split(' ').map(n => n[0]).join('').toUpperCase();
               return (
-                <div key={idx} className="team-member">
-                  <div className="member-photo">
-                    <img src={imagePath} alt={member.name} style={{width: "100%", height: "100%", objectFit: "cover"}} onError={(e) => {e.target.style.display = "none"; if(e.target.nextElementSibling) e.target.nextElementSibling.style.display = "flex";}} />
-                    <i className="fas fa-user-circle" style={{display: "none", fontSize: "60px"}}></i>
+                <div key={idx} className="team-card">
+                  <div className="team-card-image">
+                    <img 
+                      src={imagePath} 
+                      alt={member.name} 
+                      style={{width: "100%", height: "100%", objectFit: "cover"}} 
+                      onError={(e) => {
+                        e.target.style.display = "none";
+                        if(e.target.nextElementSibling) {
+                          e.target.nextElementSibling.style.display = "flex";
+                        }
+                      }} 
+                    />
+                    <div className="member-avatar-fallback" style={{display: "none", width: "100%", height: "100%", background: `linear-gradient(135deg, #2563eb, #1e40af)`, alignItems: "center", justifyContent: "center", fontSize: "2rem", color: "white", fontWeight: "bold"}}>
+                      {initials}
+                    </div>
                   </div>
-                  <h3>{member.name}</h3>
+                  <h4>{member.name}</h4>
                   <p className="member-role">{member.role}</p>
                 </div>
               );
             })}
           </div>
-          <p className="team-note">
-            📸 Add photos to <code>src/assets/members/</code> with names like <code>malak-saad-khan.jpg</code>
+          <p className="team-note" style={{textAlign: "center", marginTop: "2rem", color: "var(--text-secondary)", fontSize: "13px"}}>
+            📸 Add photos to <code style={{background: "var(--light)", padding: "2px 6px", borderRadius: "4px"}}>public/assets/members/</code> with names like <code style={{background: "var(--light)", padding: "2px 6px", borderRadius: "4px"}}>HamidNaeem.jpeg</code>
           </p>
         </div>
       </section>

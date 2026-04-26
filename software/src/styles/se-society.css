@@ -1,4 +1,4 @@
-/* Software Excellence Society Page */
+/* Software Excellence Society Page - Enhanced with Glassmorphism */
 
 :root {
   --primary-blue: #1e40af;
@@ -8,6 +8,8 @@
   --light-gray: #f8fafc;
   --dark-text: #1e293b;
   --muted-text: #64748b;
+  --glassmorphism-bg: rgba(255, 255, 255, 0.7);
+  --glassmorphism-border: rgba(255, 255, 255, 0.3);
 }
 
 .se-society-page {
@@ -17,11 +19,14 @@
 
 /* Header */
 .se-header {
-  background: linear-gradient(135deg, var(--primary-blue) 0%, var(--dark-blue) 100%);
+  background: linear-gradient(135deg, rgba(30, 64, 175, 0.95), rgba(30, 58, 138, 0.95)), linear-gradient(135deg, var(--primary-blue) 0%, var(--dark-blue) 100%);
+  background-blend-mode: multiply;
   color: white;
   padding: 60px 20px;
   text-align: center;
   position: relative;
+  box-shadow: 0 10px 40px rgba(30, 64, 175, 0.3);
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .back-link {
@@ -119,19 +124,23 @@
 }
 
 .org-member {
-  background: white;
-  border-radius: 10px;
+  background: var(--glassmorphism-bg);
+  backdrop-filter: blur(12px);
+  border-radius: 12px;
   padding: 30px 20px;
   text-align: center;
-  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.08);
-  transition: all 0.3s ease;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
+  transition: all 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
   min-width: 200px;
+  border: 1px solid var(--glassmorphism-border);
   border-top: 3px solid var(--primary-blue);
 }
 
 .org-member:hover {
   transform: translateY(-10px);
-  box-shadow: 0 15px 30px rgba(30, 64, 175, 0.15);
+  box-shadow: 0 20px 50px rgba(30, 64, 175, 0.2);
+  border-color: var(--primary-blue);
+  background: rgba(255, 255, 255, 0.95);
 }
 
 .org-member.president-card {
@@ -205,17 +214,21 @@
 }
 
 .activity-card {
-  background: white;
+  background: var(--glassmorphism-bg);
+  backdrop-filter: blur(12px);
   padding: 35px 30px;
-  border-radius: 10px;
+  border-radius: 12px;
   text-align: center;
-  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.08);
-  transition: all 0.3s ease;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
+  transition: all 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  border: 1px solid var(--glassmorphism-border);
 }
 
 .activity-card:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 15px 30px rgba(30, 64, 175, 0.15);
+  transform: translateY(-8px);
+  box-shadow: 0 20px 50px rgba(30, 64, 175, 0.2);
+  border-color: var(--primary-blue);
+  background: rgba(255, 255, 255, 0.95);
 }
 
 .activity-icon {
@@ -263,18 +276,22 @@
 }
 
 .feature-card {
-  background: var(--light-gray);
+  background: var(--glassmorphism-bg);
+  backdrop-filter: blur(12px);
   padding: 40px 30px;
-  border-radius: 10px;
+  border-radius: 12px;
   text-align: center;
-  transition: all 0.3s ease;
+  transition: all 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  border: 1px solid var(--glassmorphism-border);
   border-left: 4px solid var(--primary-blue);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
 }
 
 .feature-card:hover {
-  transform: translateY(-5px);
-  background: white;
-  box-shadow: 0 15px 30px rgba(30, 64, 175, 0.15);
+  transform: translateY(-8px);
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 20px 50px rgba(30, 64, 175, 0.2);
+  border-color: var(--primary-blue);
 }
 
 .feature-icon {
