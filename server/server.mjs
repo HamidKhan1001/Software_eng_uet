@@ -199,9 +199,7 @@ app.get('/api/health', (_req, res) => res.json({ ok: true, now: new Date().toISO
 
 // Auth Routes
 app.post('/api/auth/register', async (req, res) => {
-  res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Credentials', 'true');
-  if (!db) return res.status(503).json({ error: commonErrorMessage });
+  if (!db) return res.status(503).json({ error: 'Database connection failed. Please try again later.' });
   
   try {
     let { name, email, password, regNo, batchNumber } = req.body || {};
@@ -211,17 +209,23 @@ app.post('/api/auth/register', async (req, res) => {
     const normEmail = (email || '').trim().toLowerCase();
     
     if (!name || !normEmail || !password || !regNo || !batchNumber) {
-      console.log('Validation failed:', { name: !!name, email: !!normEmail, password: !!password, regNo: !!regNo, batchNumber: !!batchNumber });
-      return res.status(400).json({ error: 'Missing fields' });
+      const missing = [];
+      if (!name) missing.push('Full Name');
+      if (!normEmail) missing.push('Email');
+      if (!password) missing.push('Password');
+      if (!regNo) missing.push('Registration Number');
+      if (!batchNumber) missing.push('Batch');
+      console.log('Validation failed - missing fields:', missing);
+      return res.status(400).json({ error: `Please fill in all fields: ${missing.join(', ')}` });
     }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normEmail)) {
       console.log('Email validation failed:', normEmail);
-      return res.status(400).json({ error: 'Invalid email' });
+      return res.status(400).json({ error: 'Email format is invalid. Please enter a valid email address.' });
     }
     console.log('Password length:', String(password).length);
     if (String(password).length < 8) {
       console.log('Password too short');
-      return res.status(400).json({ error: 'Password too short (min 8)' });
+      return res.status(400).json({ error: 'Password must be at least 8 characters long for security.' });
     }
     
     const userCount = await collections.users.countDocuments();
@@ -231,7 +235,7 @@ app.post('/api/auth/register', async (req, res) => {
     const exists = await collections.users.findOne({ email: normEmail });
     if (exists) {
       console.log('Email already exists:', normEmail);
-      return res.status(400).json({ error: 'Email already exists' });
+      return res.status(400).json({ error: 'This email is already registered. Please login or use a different email.' });
     }
     
     // Ensure batch exists
@@ -276,9 +280,7 @@ app.post('/api/auth/register', async (req, res) => {
 });
 
 app.post('/api/auth/login', async (req, res) => {
-  res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Credentials', 'true');
-  if (!db) return res.status(503).json({ error: commonErrorMessage });
+  if (!db) return res.status(503).json({ error: 'Database connection failed. Please try again later.' });
   
   try {
     const { email, password } = req.body || {};

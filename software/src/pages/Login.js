@@ -239,12 +239,18 @@ export default function Login({ setUser }) {
             {/* Messages */}
             {error && (
               <div className="alert alert-error">
-                <i className="fas fa-exclamation-circle"></i> {error}
+                <i className="fas fa-exclamation-triangle"></i>
+                <div className="alert-content">
+                  <strong>Error:</strong> {error}
+                </div>
               </div>
             )}
             {msg && (
               <div className="alert alert-success">
-                <i className="fas fa-check-circle"></i> {msg}
+                <i className="fas fa-check-circle"></i>
+                <div className="alert-content">
+                  {msg}
+                </div>
               </div>
             )}
 
@@ -349,6 +355,11 @@ export default function Login({ setUser }) {
                       onChange={(e) => setSignupPassword(e.target.value)}
                       required
                     />
+                    <div className="password-requirement">
+                      <span className={signupPassword.length >= 8 ? 'valid' : 'invalid'}>
+                        Minimum 8 characters required
+                      </span>
+                    </div>
                   </div>
                   <button type="submit" className="btn-submit" disabled={loading}>
                     {loading ? (

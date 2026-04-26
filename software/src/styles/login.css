@@ -266,10 +266,9 @@ body, html {
   border-radius: 8px;
   margin-bottom: var(--spacing-md);
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: var(--spacing-xs);
   font-size: 13px;
-  font-weight: 600;
   animation: slideDown 0.3s ease;
 }
 
@@ -284,20 +283,55 @@ body, html {
   }
 }
 
+.alert-content {
+  line-height: 1.5;
+  flex: 1;
+}
+
 .alert-error {
   background: #fecaca;
   color: #991b1b;
   border-left: 3px solid #dc2626;
+  font-weight: 500;
 }
 
 .alert-success {
   background: #bbf7d0;
   color: #15803d;
   border-left: 3px solid #16a34a;
+  font-weight: 500;
 }
 
 .alert i {
   flex-shrink: 0;
+  margin-top: 2px;
+}
+
+/* Password Requirement Indicator */
+.password-requirement {
+  margin-top: 8px;
+  padding: 8px 0;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.password-requirement span {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 4px;
+  background: #f3f4f6;
+  color: #6b7280;
+}
+
+.password-requirement span.valid {
+  background: #dbeafe;
+  color: #0369a1;
+  font-weight: 600;
+}
+
+.password-requirement span.invalid {
+  background: #fee2e2;
+  color: #991b1b;
 }
 
 /* Form Container */
