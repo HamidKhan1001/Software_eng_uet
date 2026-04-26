@@ -53,7 +53,7 @@ export default function Home() {
   const getImagePath = (name) => {
     const filenameMap = {
       "Hamid Naeem": "HamidNaeem.jpeg",
-      "Malak Saad Khan": "malak-saad-khan.jpeg",
+      "Malak Saad Khan": "MalakSaad.jpeg",
       "Muhammad Adam": "muhammad-adam.jpeg",
       "Muhammad Umar": "muhammad-umar.jpeg",
       "Hammad Khan": "hammad-khan.jpeg",
