@@ -6,6 +6,28 @@ export default function Home() {
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
 
+  // NEW: State for navbar visibility
+  const [isVisible, setIsVisible] = useState(true);
+  const [lastScrollY, setLastScrollY] = useState(0);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      const currentScrollY = window.scrollY;
+
+      if (currentScrollY > lastScrollY && currentScrollY > 80) {
+        // Scrolling down - hide
+        setIsVisible(false);
+      } else {
+        // Scrolling up - show
+        setIsVisible(true);
+      }
+      setLastScrollY(currentScrollY);
+    };
+
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, [lastScrollY]);
+
   // Scroll animation observer
   useEffect(() => {
     const observerOptions = {
@@ -72,8 +94,8 @@ export default function Home() {
 
   return (
     <div className="home-page">
-      {/* Navigation Bar with Hamburger */}
-      <nav className="home-nav">
+      {/* UPDATE: Apply the conditional class here */}
+      <nav className={`home-nav ${!isVisible ? "nav-hidden" : ""}`}>
         <div className="nav-container">
           <div className="nav-brand">
             <i className="fas fa-graduation-cap"></i>
