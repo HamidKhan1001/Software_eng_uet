@@ -27,7 +27,6 @@ coverage/
 **/.env.*
 !**/.env.example
 !**/.env.sample
-!**/software/.env.production
 
 # ---- Data exports (attendance files) ----
 data/attendance/
