@@ -45,6 +45,7 @@ export default function Login({ setUser }) {
     setMsg("");
     setLoading(true);
     try {
+      console.log('Signup attempt:', { name, email: signupEmail, regNo, batchNumber });
       const r = await api.register({
         name,
         email: signupEmail,
@@ -52,10 +53,18 @@ export default function Login({ setUser }) {
         regNo,
         batchNumber,
       });
+      console.log('Signup response:', r);
+      console.log('User object:', r.user);
+      console.log('Token:', r.token ? 'received' : 'MISSING');
+      if (!r.token || !r.user) {
+        throw new Error('Invalid response: missing token or user');
+      }
       localStorage.setItem("token", r.token);
       setUser(r.user);
+      console.log('Navigating to:', r.user.role === "admin" ? "/admin" : "/dashboard");
       navigate(r.user.role === "admin" ? "/admin" : "/dashboard");
     } catch (err) {
+      console.error('Signup error:', err);
       setError(String(err.message || err));
     } finally {
       setLoading(false);

@@ -265,8 +265,10 @@ app.post('/api/auth/register', async (req, res) => {
     console.log('User inserted successfully');
     const token = jwt.sign({ id: userId.toString(), name, email: normEmail, role: finalRole, batch_id: batch._id.toString() }, JWT_SECRET, { expiresIn: '7d' });
     
-    console.log('Returning success response');
-    res.json({ user: { id: userId.toString(), name, email: normEmail, role: finalRole, batchId: batch._id.toString() }, token });
+    const responseUser = { id: userId.toString(), name, email: normEmail, role: finalRole, batchId: batch._id.toString() };
+    const responseBody = { user: responseUser, token };
+    console.log('Returning success response:', JSON.stringify(responseBody, null, 2));
+    res.json(responseBody);
   } catch (err) {
     console.error('Register error:', err);
     res.status(500).json({ error: err.message });
