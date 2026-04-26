@@ -66,13 +66,8 @@ export default function Home() {
     };
     
     const filename = filenameMap[name] || name.toLowerCase().replace(/\s+/g, "-") + ".jpeg";
-    try {
-      // Try to require from src/assets/members for production
-      return require(`../assets/members/${filename}`);
-    } catch (e) {
-      // Fallback to public path
-      return `/assets/members/${filename}`;
-    }
+    // Always use public path for images
+    return `/assets/members/${filename}`;
   };
 
   return (
